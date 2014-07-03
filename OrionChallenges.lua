@@ -294,7 +294,7 @@ function OrionChallenges:AddItem(index, challenge)
 		elseif challenge:IsInCooldown() then
 			bEnableCtrl = false
 			wndTimer:Show(true)
-			wndTimer:SetText(c:GetTimeStr())
+			wndTimer:SetText(challenge:GetTimeStr())
 		else
 			bEnableCtrl = false
 		end
