@@ -9,7 +9,7 @@ require "ChallengesLib"
 -----------------------------------------------------------------------------------------------
 -- OrionChallenges Module Definition
 -----------------------------------------------------------------------------------------------
-local OrionChallenges = {} 
+local OrionChallenges = {}
  
 -----------------------------------------------------------------------------------------------
 -- Constants
@@ -269,7 +269,7 @@ end
 -- add an item into the item list
 function OrionChallenges:AddItem(index, challenge)
 	local wnd = Apollo.LoadForm(self.xmlDoc, "ListItem", self.wndItemList, self)
-	self.tItems[i] = wnd
+	self.tItems[index] = wnd
 	local wndItemText = wnd:FindChild("Text")
 	if wndItemText then -- make sure the text wnd exist
 		local wndDistance = wnd:FindChild("Distance")
@@ -279,34 +279,38 @@ function OrionChallenges:AddItem(index, challenge)
 			and not challenge:IsActivated() and not challenge:ShouldCollectReward() 
 			and self:HelperIsInZone(challenge:GetZoneRestrictionInfo())
 			
-		local sText = "", sBGColor = "ff000000", bEnableCtrl = true
+		local sText = ""
+		local sBGColor = "ff000000"
+		local bEnableCtrl = true
 		
 		wndTimer:Show(false)
 		if bEnable then
 			sText = "Start"
 			sBGColor = "ff00ff00"
-		elseif c:IsActivated() then
+		elseif challenge:IsActivated() then
 			sText = "Cancel"
 			sBGColor = "ffda4f49"
-		elseif c:ShouldCollectReward() then
+		elseif challenge:ShouldCollectReward() then
 			sText = "Loot"
 			sBGColor = "ffdaa520"
-		elseif c:IsInCooldown() then
+		elseif challenge:IsInCooldown() then
 			bEnableCtrl = false
 			wndTimer:Show(true)
 			wndTimer:SetText(c:GetTimeStr())
+		else
+			bEnableCtrl = false
 		end
 		
 		wndControl:SetText(sText)
 		wndControl:SetBGColor(sBGColor)
 		wndControl:Show(bEnableCtrl)
 		
-		wndItemText:SetText(c:GetName())
+		wndItemText:SetText(challenge:GetName())
 		wndItemText:SetTextColor(kcrNormalText)
 		
-		self:UpdateDistance(wndDistance, c)
+		self:UpdateDistance(wndDistance, challenge)
 	end
-	wnd:SetData({index = i, challenge = c})
+	wnd:SetData({index = index, challenge = challenge})
 end
 
 function OrionChallenges:UpdateDistance(wndDistance, c)
