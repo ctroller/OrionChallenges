@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Addon Author="trox" APIVersion="8" Name="OrionChallenges" Description="">
+    <Script Name="OrionChallenges.lua"/>
+    <Form Name="OrionChallenges.xml"/>
+</Addon>
