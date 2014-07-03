@@ -18,7 +18,7 @@ local OrionChallenges = {}
 local kcrSelectedText = ApolloColor.new("UI_BtnTextHoloPressedFlyby")
 local kcrNormalText = ApolloColor.new("UI_BtnTextHoloNormal")
 
-local bDebug = true
+local bDebug = false
 local nVersion, nMinor = 0, 1
  
 -----------------------------------------------------------------------------------------------
@@ -279,9 +279,7 @@ function OrionChallenges:AddItem(index, challenge)
 			and not challenge:IsActivated() and not challenge:ShouldCollectReward() 
 			and self:HelperIsInZone(challenge:GetZoneRestrictionInfo())
 			
-		local sText = ""
-		local sBGColor = "ff000000"
-		local bEnableCtrl = true
+		local sText, sBGColor, bEnableCtrl = "", "ff000000", true
 		
 		wndTimer:Show(false)
 		if bEnable then
