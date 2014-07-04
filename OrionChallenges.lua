@@ -33,7 +33,6 @@ function OrionChallenges:new(o)
 	o.tItems = {} -- keep track of all the list items
 	o.wndSelectedListItem = nil -- keep track of which list item is currently selected
 	o.cachedChallenges = {}
-	o.playerUnit = GameLib.GetPlayerUnit()
 
     return o
 end
@@ -131,8 +130,10 @@ end
 function OrionChallenges:GetChallengeDistance(challenge)
 	if challenge ~= nil and challenge:GetMapLocation() ~= nil then
 		local target = challenge:GetMapLocation()
-		local player = self.playerUnit:GetPosition()
-		return Vector3.New(target.x - player.x, target.y - player.y, target.z - player.z):Length()
+		if GameLib.GetPlayerUnit() then
+			local player = GameLib.GetPlayerUnit():GetPosition()
+			return Vector3.New(target.x - player.x, target.y - player.y, target.z - player.z):Length()
+		end
 	end
 	
 	return 0
@@ -157,31 +158,30 @@ end
 
 function OrionChallenges:OnSubZoneChanged()
 	self.currentZoneId = GameLib.GetCurrentZoneId()
-	self.playerUnit = GameLib.GetPlayerUnit()
-
 	self:PopulateItemList()
 end
 
 function OrionChallenges:TimerUpdateDistance()
-	self.curPosition = self.playerUnit:GetPosition()
-	if self.curPosition == nil then return end
-	if self.lastPosition == nil then
-		self.lastPosition = self.curPosition
-	end
+	if GameLib.GetPlayerUnit() then
+		self.curPosition = GameLib.GetPlayerUnit():GetPosition()
+		if self.curPosition == nil then return end
+		if self.lastPosition == nil then
+			self.lastPosition = self.curPosition
+		end
+		
+		local moving = true
+		if  math.abs(self.lastPosition.x - self.curPosition.x) < 0.01 and 
+			math.abs(self.lastPosition.y - self.curPosition.y) < 0.01 and 
+			math.abs(self.lastPosition.z - self.curPosition.z) < 0.01 then	
+			moving = false
+		end
 	
-	local moving = true
-	if  math.abs(self.lastPosition.x - self.curPosition.x) < 0.01 and 
-		math.abs(self.lastPosition.y - self.curPosition.y) < 0.01 and 
-		math.abs(self.lastPosition.z - self.curPosition.z) < 0.01 then	
-		moving = false
+		if moving or self.lastZoneId ~= currentZoneId then
+			self:PopulateItemList()
+		end
+		self.lastZoneId = self.currentZoneId
 	end
-
-	if moving or self.lastZoneId ~= currentZoneId then
-		self:PopulateItemList()
-	end
-	self.lastZoneId = self.currentZoneId
 end
-
 function OrionChallenges:OnListItemSelected(wndHandler, wndControl)
     -- make sure the wndControl is valid
     if wndHandler ~= wndControl then
