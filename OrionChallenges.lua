@@ -409,7 +409,7 @@ function OrionChallenges:UpdateDistance(index, challenge)
 	wndDistance:SetTextColor(kcrNormalText)
 	
 	local challenges = self:GetChallengesByZoneSorted()
-	if wnd:GetData() and wnd:GetData().challenge:GetId() ~= challenges[index]:GetId() then
+	if challenges[index] and wnd:GetData() and wnd:GetData().challenge and wnd:GetData().challenge:GetId() ~= challenges[index]:GetId() then
 		self:OnOrionChallengesOrderChanged()
 	end
 end
