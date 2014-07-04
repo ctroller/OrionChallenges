@@ -86,18 +86,19 @@ function OrionChallenges:OnDocLoaded()
 		-- e.g. Apollo.RegisterEventHandler("KeyDown", "OnKeyDown", self)
 		Apollo.RegisterSlashCommand("oc", "OnOrionChallengesToggle", self)
 		
-		Apollo.RegisterEventHandler("SubZoneChanged", 				"OnSubZoneChanged", 				self)
+		Apollo.RegisterEventHandler("SubZoneChanged",				"OnSubZoneChanged", 				self)
 		Apollo.RegisterEventHandler("ChallengeUnlocked",			"OnChallengeUnlocked", 				self)
-		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded", 	"OnInterfaceMenuListHasLoaded", 	self)
+		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded",	"OnInterfaceMenuListHasLoaded", 	self)
 		Apollo.RegisterEventHandler("OrionChallengesToggle",		"OnOrionChallengesToggle", 			self)
 		Apollo.RegisterEventHandler("OrionChallengesOrderChanged",	"OnOrionChallengesOrderChanged", 	self)
-		Apollo.RegisterEventHandler("WindowManagementReady", 		"OnWindowManagementReady", 			self)
+		Apollo.RegisterEventHandler("WindowManagementReady",		"OnWindowManagementReady", 			self)
 		
 		
 		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
 		self.currentZoneId = GameLib.GetCurrentZoneId()
 		self.isVisible = false
 		self.tChallenges = self:GetChallengesByZoneSorted()
+		self.populating = false
 	end
 end
 
@@ -361,18 +362,22 @@ end
 -----------------------------------------------------------------------------------------------
 -- populate item list
 function OrionChallenges:PopulateItemList()
-	-- make sure the item list is empty to start with
-	self:DestroyItemList()
-
-	local challenges = self:GetChallengesByZoneSorted(self.currentZoneId)
+	if not self.populating then
+		self.populating = true
+		-- make sure the item list is empty to start with
+		self:DestroyItemList()
 	
-	local max = #challenges < 10 and #challenges or 10
-	for i = 1, max do
-		self:AddItem(i, challenges[i])
+		local challenges = self:GetChallengesByZoneSorted(self.currentZoneId)
+		
+		local max = #challenges < 10 and #challenges or 10
+		for i = 1, max do
+			self:AddItem(i, challenges[i])
+		end
+		
+		-- now all the item are added, call ArrangeChildrenVert to list out the list items vertically
+		self.wndItemList:ArrangeChildrenVert()
+		self.populating = false
 	end
-	
-	-- now all the item are added, call ArrangeChildrenVert to list out the list items vertically
-	self.wndItemList:ArrangeChildrenVert()
 end
 
 -- clear the item list
@@ -404,7 +409,7 @@ function OrionChallenges:UpdateDistance(index, challenge)
 	wndDistance:SetTextColor(kcrNormalText)
 	
 	local challenges = self:GetChallengesByZoneSorted()
-	if wnd:GetData().challenge:GetId() ~= challenges[index]:GetId() then
+	if wnd:GetData() and wnd:GetData().challenge:GetId() ~= challenges[index]:GetId() then
 		self:OnOrionChallengesOrderChanged()
 	end
 end
