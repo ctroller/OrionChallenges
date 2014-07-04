@@ -19,7 +19,8 @@ local kcrSelectedText = ApolloColor.new("UI_BtnTextHoloPressedFlyby")
 local kcrNormalText = ApolloColor.new("UI_BtnTextHoloNormal")
 
 local bDebug = false
-local nVersion, nMinor = 0, 1
+local nVersion, nMinor = 0, 2
+local sAuthor = "Troxito@EU-Progenitor"
  
 -----------------------------------------------------------------------------------------------
 -- Initialization
@@ -77,14 +78,17 @@ function OrionChallenges:OnDocLoaded()
 		
 		-- Register handlers for events, slash commands and timer, etc.
 		-- e.g. Apollo.RegisterEventHandler("KeyDown", "OnKeyDown", self)
-		Apollo.RegisterSlashCommand("oc", "OnOrionChallengesOnShow", self)
+		Apollo.RegisterSlashCommand("oc", "OnOrionChallengesToggle", self)
 		
-		Apollo.RegisterEventHandler("SubZoneChanged", "OnSubZoneChanged", self)
-
+		Apollo.RegisterEventHandler("SubZoneChanged", 				"OnSubZoneChanged", self)
+		Apollo.RegisterEventHandler("ChallengeUnlocked",			"OnChallengeUnlocked", self)
+		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded", 	"OnInterfaceMenuListHasLoaded", self)
+		Apollo.RegisterEventHandler("OrionChallengesToggle",		"OnOrionChallengesToggle", self)
+		
+		
 		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
 		self.currentZoneId = GameLib.GetCurrentZoneId()
-
-		-- Do additional Addon initialization here
+		self.isVisible = false
 	end
 end
 
@@ -100,65 +104,44 @@ function Debug(str)
 end
 
 -- on SlashCommand "/oc"
-function OrionChallenges:OnOrionChallengesOnShow()
-	self.wndMain:Invoke() -- show the window
-	self.timerPos:Start()
-	-- populate the item list
-	self:PopulateItemList()
-end
-
-function OrionChallenges:GetChallengesByZone(zoneId)
-	zoneId = zoneId and zoneId or GameLib.GetCurrentZoneId()
-
-	if self.cachedChallenges[zoneId] ~= nil then
-		return self.cachedChallenges[zoneId]
-	end
-
-	local returnValue = {}
-	
-	for i, challenge in pairs(ChallengesLib.GetActiveChallengeList()) do
-		if GameLib.IsZoneInZone(zoneId, challenge:GetZoneInfo().idZone) then
-			table.insert(returnValue, challenge)
-		end
+function OrionChallenges:OnOrionChallengesToggle()
+	if not self.isVisible then
+		self:OnShow()
+	else
+		self:OnClose()
 	end
 	
-	table.insert(self.cachedChallenges, zoneId, returnValue)
-	
-	return returnValue
+	self:UpdateInterfaceMenuAlerts()
 end
-
-function OrionChallenges:GetChallengeDistance(challenge)
-	if challenge ~= nil and challenge:GetMapLocation() ~= nil then
-		local target = challenge:GetMapLocation()
-		if GameLib.GetPlayerUnit() then
-			local player = GameLib.GetPlayerUnit():GetPosition()
-			return Vector3.New(target.x - player.x, target.y - player.y, target.z - player.z):Length()
-		end
-	end
-	
-	return 0
-end
-
-function OrionChallenges:HelperIsInZone(tZoneRestrictionInfo)
-	return tZoneRestrictionInfo.idSubZone == 0 or GameLib.IsInWorldZone(tZoneRestrictionInfo.idSubZone)
-end
-
-function OrionChallenges:IsStartable(clgCurrent)
-    return clgCurrent:GetCompletionCount() < clgCurrent:GetCompletionTotal() or clgCurrent:GetCompletionTotal() == -1
-end
-
 
 -----------------------------------------------------------------------------------------------
 -- Hook Functions
 -----------------------------------------------------------------------------------------------
+function OrionChallenges:OnShow()
+	self.wndMain:Invoke()
+	self.timerPos:Start()
+	self:PopulateItemList()
+	self.isVisible = true
+end
+
 function OrionChallenges:OnClose()
 	self.wndMain:Show(false)
 	self.timerPos:Stop()
+	self.isVisible = false
 end
 
 function OrionChallenges:OnSubZoneChanged()
 	self.currentZoneId = GameLib.GetCurrentZoneId()
 	self:PopulateItemList()
+end
+
+function OrionChallenges:OnChallengeUnlocked()
+	local zoneId = GameLib.GetCurrentZoneId()
+	if zoneId ~= nil and self.cachedChallenges[zoneId] ~= nil then
+		self.cachedChallenges[zoneId] = nil
+	elseif zoneId == -1 then
+		self.cachedChallenges = {}
+	end
 end
 
 function OrionChallenges:TimerUpdateDistance()
@@ -182,6 +165,7 @@ function OrionChallenges:TimerUpdateDistance()
 		self.lastZoneId = self.currentZoneId
 	end
 end
+
 function OrionChallenges:OnListItemSelected(wndHandler, wndControl)
     -- make sure the wndControl is valid
     if wndHandler ~= wndControl then
@@ -223,6 +207,38 @@ function OrionChallenges:OnChallengeControlClicked(wndHandler, wndControl)
 	end
 end
 
+function OrionChallenges:OnInterfaceMenuListHasLoaded()
+	Event_FireGenericEvent("InterfaceMenuList_NewAddOn", "OrionChallenges", {"OrionChallengesToggle", "", "Icon_Windows32_UI_CRB_InterfaceMenu_ChallengeLog"})
+	self:UpdateInterfaceMenuAlerts()
+end
+
+function OrionChallenges:UpdateInterfaceMenuAlerts()
+	Event_FireGenericEvent("InterfaceMenuList_AlertAddOn", "OrionChallenges", {self.isVisible, nil, 0})
+end
+
+-----------------------------------------------------------------------------------------------
+-- General Functions
+-----------------------------------------------------------------------------------------------
+function OrionChallenges:GetChallengesByZone(zoneId)
+	zoneId = zoneId and zoneId or GameLib.GetCurrentZoneId()
+
+	if self.cachedChallenges[zoneId] ~= nil then
+		return self.cachedChallenges[zoneId]
+	end
+
+	local returnValue = {}
+	
+	for i, challenge in pairs(ChallengesLib.GetActiveChallengeList()) do
+		if GameLib.IsZoneInZone(zoneId, challenge:GetZoneInfo().idZone) then
+			table.insert(returnValue, challenge)
+		end
+	end
+	
+	table.insert(self.cachedChallenges, zoneId, returnValue)
+	
+	return returnValue
+end
+
 function OrionChallenges:GetChallengesByZoneSorted(zoneId)
 	local challenges = self:GetChallengesByZone(zoneId)
 	table.sort(challenges, function(challenge1, challenge2) 
@@ -233,6 +249,26 @@ function OrionChallenges:GetChallengesByZoneSorted(zoneId)
 	end)
 	
 	return challenges
+end
+
+function OrionChallenges:GetChallengeDistance(challenge)
+	if challenge ~= nil and challenge:GetMapLocation() ~= nil then
+		local target = challenge:GetMapLocation()
+		if GameLib.GetPlayerUnit() then
+			local player = GameLib.GetPlayerUnit():GetPosition()
+			return Vector3.New(target.x - player.x, target.y - player.y, target.z - player.z):Length()
+		end
+	end
+	
+	return 0
+end
+
+function OrionChallenges:HelperIsInZone(tZoneRestrictionInfo)
+	return tZoneRestrictionInfo.idSubZone == 0 or GameLib.IsInWorldZone(tZoneRestrictionInfo.idSubZone)
+end
+
+function OrionChallenges:IsStartable(clgCurrent)
+    return clgCurrent:GetCompletionCount() < clgCurrent:GetCompletionTotal() or clgCurrent:GetCompletionTotal() == -1
 end
 
 -----------------------------------------------------------------------------------------------
