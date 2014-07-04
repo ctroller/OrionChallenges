@@ -110,8 +110,6 @@ function OrionChallenges:OnOrionChallengesToggle()
 	else
 		self:OnClose()
 	end
-	
-	self:UpdateInterfaceMenuAlerts()
 end
 
 -----------------------------------------------------------------------------------------------
@@ -122,12 +120,16 @@ function OrionChallenges:OnShow()
 	self.timerPos:Start()
 	self:PopulateItemList()
 	self.isVisible = true
+	
+	self:UpdateInterfaceMenuAlerts()
 end
 
 function OrionChallenges:OnClose()
 	self.wndMain:Show(false)
 	self.timerPos:Stop()
 	self.isVisible = false
+	
+	self:UpdateInterfaceMenuAlerts()
 end
 
 function OrionChallenges:OnSubZoneChanged()
