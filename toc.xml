@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Addon Author="trox" APIVersion="8" Name="OrionChallenges" Description="Displays a window with the nearest (a maximum of 10 at the time) challenges in your current zone, and allows you to one-click Start, Cancel or Loot finished challenges." Version="0.2">
+<Addon Author="trox" APIVersion="8" Name="OrionChallenges" Description="Displays a window with the nearest (a maximum of 10 at the time) challenges in your current zone, and allows you to one-click Start, Cancel or Loot finished challenges." Version="0.3">
     <Script Name="OrionChallenges.lua"/>
     <Form Name="OrionChallenges.xml"/>
 </Addon>
