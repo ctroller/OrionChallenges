@@ -32,7 +32,7 @@ local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 
 local bDebug = false
-local nVersion, nMinor, nTick = 0, 4, 3
+local nVersion, nMinor, nTick = 0, 4, 4
 local sAuthor = "Troxito@EU-Progenitor"
  
 -----------------------------------------------------------------------------------------------
@@ -234,6 +234,7 @@ function OrionChallenges:UpdateInterfaceMenuAlerts()
 end
 
 function OrionChallenges:OnOrionChallengesOrderChanged()
+	self.tChallenges = self:GetChallengesByZoneSorted()
 	self:PopulateItemList()
 end
 
@@ -422,7 +423,7 @@ function OrionChallenges:UpdateDistance(index, challenge)
 		wndDistance:SetTextColor(kcrNormalText)
 		
 		local challenges = self.tChallenges
-		if challenges[index] and wnd:GetData() and wnd:GetData().challenge and wnd:GetData().challenge:GetId() ~= challenges[index]:GetId() then
+		if challenges[index+1] and self:GetChallengeDistance(challenges[index+1]) < self:GetChallengeDistance(challenge) then
 			self:OnOrionChallengesOrderChanged()
 		end
 	end
