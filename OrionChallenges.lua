@@ -103,7 +103,7 @@ function OrionChallenges:OnDocLoaded()
 		self.timerPos:Stop()
 		self.currentZoneId = -1
 		self.tCachedChallenges = {}
-		self.tChallenges = self:GetChallengesByZoneSorted()
+		self.tChallenges = {}
 		self.populating = false
 		
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetText("OrionChallenges v"..nVersion.."."..nMinor.."."..nTick)
@@ -140,7 +140,7 @@ end
 function OrionChallenges:OnShow()
 	self.wndMain:Invoke()
 	self.timerPos:Start()
-	self:PopulateItemList()
+	self:PopulateItemList(true)
 	self:UpdateInterfaceMenuAlerts()
 end
 
@@ -179,10 +179,7 @@ function OrionChallenges:TimerUpdateDistance()
 			self:HandleButtonControl(i)
 		end
 		
-		
-		
 		self.lastZoneId = self.currentZoneId
-		self.tChallenges = self:GetChallengesByZoneSorted()
 	end
 end
 
@@ -367,24 +364,6 @@ function OrionChallenges:IsStartable(clgCurrent)
     return clgCurrent:GetCompletionCount() < clgCurrent:GetCompletionTotal() or clgCurrent:GetCompletionTotal() == -1
 end
 
-function OrionChallenges:IsSameChallengeOrder()
-	local tCurrChallenges = self:GetChallengesByZoneSorted()
-	local tOldChallenges = self.tChallenges
-	if #tCurrChallenges == #tOldChallenges then
-		for i=1, #tCurrChallenges do
-			local challenge1 = tCurrChallenges[i]
-			local challenge2 = tOldChallenges[i]
-			if challenge1:GetId() ~= challenge2:GetId() then
-				return false
-			end
-		end
-	else
-		return false
-	end
-	
-	return true
-end
-
 -----------------------------------------------------------------------------------------------
 -- ItemList Functions
 -----------------------------------------------------------------------------------------------
@@ -396,8 +375,8 @@ function OrionChallenges:PopulateItemList(bForce)
 		-- make sure the item list is empty to start with
 		self:DestroyItemList()
 	
-		local challenges = self.tChallenges
-		
+		local challenges = self:GetChallengesByZoneSorted()
+		self.tChallenges = challenges		
 		for i = 1, self:GetMaxChallenges() do
 			self:AddItem(i, challenges[i])
 		end
