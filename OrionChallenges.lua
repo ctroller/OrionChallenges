@@ -310,7 +310,7 @@ function OrionChallenges:InvalidateCachedChallenges()
 	local nZoneId = GameLib.GetCurrentZoneId()
 	if nZoneId ~= nil and self.tCachedChallenges[nZoneId] ~= nil then
 		self.tCachedChallenges[nZoneId] = nil
-	elseif ZoneId == -1 then
+	elseif nZoneId == -1 then
 		self.cachedChallenges = {}
 	end
 end
