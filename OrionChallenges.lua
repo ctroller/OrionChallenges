@@ -12,9 +12,12 @@ require "ChallengesLib"
 local OrionChallenges = {}
 
 local DefaultSettings = {
-	nMaxItems = 10,
-	iFilteredItems = 0,
-	bLockWindow = false
+	nMaxItems			= 10,
+	iFilteredItems		= 0,
+	bLockWindow			= false,
+	bAutostart			= false,
+	bAutocollect		= false,
+	iAutocollectType	= 0
 }
  
 -----------------------------------------------------------------------------------------------
@@ -91,7 +94,7 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterSlashCommand("oc", "OnOrionChallengesToggle", self)
 		
 		Apollo.RegisterEventHandler("SubZoneChanged",				"OnSubZoneChanged",					self)
-		Apollo.RegisterEventHandler("ChallengeUnlocked",			"OnChallengeUnlocked",				self)
+		Apollo.RegisterEventHandler("ChallengeUnlocked",			"InvalidateCachedChallenges",		self)
 		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded",	"OnInterfaceMenuListHasLoaded",		self)
 		Apollo.RegisterEventHandler("OrionChallengesToggle",		"OnOrionChallengesToggle",			self)
 		Apollo.RegisterEventHandler("OrionChallengesOrderChanged",	"OnOrionChallengesOrderChanged",	self)
@@ -99,9 +102,9 @@ function OrionChallenges:OnDocLoaded()
 		
 		
 		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
-		self.currentZoneId = GameLib.GetCurrentZoneId()
+		self.currentMapId = GameLib.GetCurrentZoneMap().id
 		self.isVisible = false
-		self.tChallenges = self:GetChallengesByZoneSorted()
+		self.tChallenges = self:GetChallengesByMapSorted()
 		self.populating = false
 		
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetText("OrionChallenges v"..nVersion.."."..nMinor.."."..nTick)
@@ -150,20 +153,17 @@ function OrionChallenges:OnClose()
 end
 
 function OrionChallenges:OnSubZoneChanged()
-	self.currentZoneId = GameLib.GetCurrentZoneId()
-	self:PopulateItemList()
-end
-
-function OrionChallenges:OnChallengeUnlocked()
-	local zoneId = GameLib.GetCurrentZoneId()
-	if zoneId ~= nil and self.cachedChallenges[zoneId] ~= nil then
-		self.cachedChallenges[zoneId] = nil
-	elseif zoneId == -1 then
-		self.cachedChallenges = {}
+	if self.currentMapId ~= GameLib.GetCurrentZoneMap().id then
+		self:PopulateItemList()
 	end
 end
 
+function OrionChallenges:OnChallengeUnlocked()
+	self:invalidateCachedChallenges()
+end
+
 function OrionChallenges:TimerUpdateDistance()
+	if self.currentMapId == -1 and GameLib:GetCurrentZoneMap() ~= nil then self.currentMapId = GameLib:GetCurrentZoneMap().id end
 	if GameLib.GetPlayerUnit() then
 		self.curPosition = GameLib.GetPlayerUnit():GetPosition()
 		if self.curPosition == nil then return end
@@ -185,8 +185,8 @@ function OrionChallenges:TimerUpdateDistance()
 		
 		
 		
-		self.lastZoneId = self.currentZoneId
-		self.tChallenges = self:GetChallengesByZoneSorted()
+		self.lastMapId = self.currentMapId
+		self.tChallenges = self:GetChallengesByMapSorted()
 	end
 end
 
@@ -251,28 +251,37 @@ end
 -----------------------------------------------------------------------------------------------
 -- General Functions
 -----------------------------------------------------------------------------------------------
-function OrionChallenges:GetChallengesByZone(zoneId)
-	zoneId = zoneId and zoneId or GameLib.GetCurrentZoneId()
+function OrionChallenges:InvalidateCachedChallenges()
+	local mapId = GameLib.GetCurrentZoneMap().id
+	if mapId ~= nil and self.cachedChallenges[mapId] ~= nil then
+		self.cachedChallenges[mapId] = nil
+	elseif mapId == -1 then
+		self.cachedChallenges = {}
+	end
+end
 
-	if self.cachedChallenges[zoneId] ~= nil then
-		return self.cachedChallenges[zoneId]
+function OrionChallenges:GetChallengesByMap(mapId)
+	mapId = mapId and mapId or GameLib.GetCurrentZoneMap().id
+
+	if self.cachedChallenges[mapId] ~= nil then
+		return self.cachedChallenges[mapId]
 	end
 
 	local returnValue = {}
 	
 	for i, challenge in pairs(ChallengesLib.GetActiveChallengeList()) do
-		if GameLib.IsZoneInZone(zoneId, challenge:GetZoneInfo().idZone) then
+		if GameLib.IsZoneInZone(GameLib.GetCurrentZoneId(), challenge:GetZoneInfo().idZone) then
 			table.insert(returnValue, challenge)
 		end
 	end
 	
-	table.insert(self.cachedChallenges, zoneId, returnValue)
+	table.insert(self.cachedChallenges, mapId, returnValue)
 	
 	return returnValue
 end
 
-function OrionChallenges:GetChallengesByZoneSorted(zoneId)
-	local challenges = self:GetChallengesByZone(zoneId)
+function OrionChallenges:GetChallengesByMapSorted(mapId)
+	local challenges = self:GetChallengesByMap(mapId)
 	table.sort(challenges, function(challenge1, challenge2) 
 		local dist1 = self:GetChallengeDistance(challenge1)
 		local dist2 = self:GetChallengeDistance(challenge2)
@@ -349,7 +358,7 @@ function OrionChallenges:IsStartable(clgCurrent)
 end
 
 function OrionChallenges:IsSameChallengeOrder()
-	local tCurrChallenges = self:GetChallengesByZoneSorted()
+	local tCurrChallenges = self:GetChallengesByMapSorted()
 	local tOldChallenges = self.tChallenges
 	if #tCurrChallenges == #tOldChallenges then
 		for i=1, #tCurrChallenges do
@@ -376,7 +385,7 @@ function OrionChallenges:PopulateItemList()
 		-- make sure the item list is empty to start with
 		self:DestroyItemList()
 	
-		local challenges = self:GetChallengesByZoneSorted(self.currentZoneId)
+		local challenges = self:GetChallengesByMapSorted()
 		
 		local max = #challenges < 10 and #challenges or 10
 		for i = 1, max do
@@ -413,11 +422,15 @@ end
 function OrionChallenges:UpdateDistance(index, challenge)
 	local wnd = self.tItems[index]
 	local wndDistance = wnd:FindChild("Distance")
-	local distance = self:GetChallengeDistance(challenge)
-	wndDistance:SetText(math.floor(distance).."m")
+	if challenge and challenge:GetMapLocation() ~= nil then
+		local distance = self:GetChallengeDistance(challenge)
+		wndDistance:SetText(math.floor(distance).."m")
+	else
+		wndDistance:SetText("?")
+	end
 	wndDistance:SetTextColor(kcrNormalText)
 	
-	local challenges = self:GetChallengesByZoneSorted()
+	local challenges = self:GetChallengesByMapSorted()
 	if challenges[index] and wnd:GetData() and wnd:GetData().challenge and wnd:GetData().challenge:GetId() ~= challenges[index]:GetId() then
 		self:OnOrionChallengesOrderChanged()
 	end
