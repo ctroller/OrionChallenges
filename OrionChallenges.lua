@@ -10,6 +10,12 @@ require "ChallengesLib"
 -- OrionChallenges Module Definition
 -----------------------------------------------------------------------------------------------
 local OrionChallenges = {}
+
+local DefaultSettings = {
+	nMaxItems = 10,
+	iFilteredItems = 0,
+	bLockWindow = false
+}
  
 -----------------------------------------------------------------------------------------------
 -- Constants
@@ -18,14 +24,18 @@ local OrionChallenges = {}
 local kcrSelectedText = ApolloColor.new("UI_BtnTextHoloPressedFlyby")
 local kcrNormalText = ApolloColor.new("UI_BtnTextHoloNormal")
 
-local kStateOutOfRange		= -1
-local kStateStartable 		= 1
-local kStateLootable 		= 2
-local kStateActivated 		= 3
-local kStateOnCooldown 		= 4
+local kbStateOutOfRange		= -1
+local kbStateStartable 		= 1
+local kbStateLootable 		= 2
+local kbStateActivated 		= 3
+local kbStateOnCooldown 	= 4
+
+local ksSpriteBronzeMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierBronze"
+local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
+local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 
 local bDebug = false
-local nVersion, nMinor = 0, 3
+local nVersion, nMinor, nTick = 0, 4, 0
 local sAuthor = "Troxito@EU-Progenitor"
  
 -----------------------------------------------------------------------------------------------
@@ -99,6 +109,12 @@ function OrionChallenges:OnDocLoaded()
 		self.isVisible = false
 		self.tChallenges = self:GetChallengesByZoneSorted()
 		self.populating = false
+		
+		self.wndMain:FindChild("Header"):FindChild("Title"):SetText("OrionChallenges v"..nVersion.."."..nMinor.."."..nTick)
+		self.wndMain:FindChild("Header"):FindChild("Title"):SetTooltip("Written by "..sAuthor)
+		
+		self.wndSettings = Apollo.LoadForm(self.xmlDoc, "Settings", nil, self)
+		self.wndSettings:Show(false)
 	end
 end
 
@@ -115,7 +131,7 @@ end
 
 -- on SlashCommand "/oc"
 function OrionChallenges:OnOrionChallengesToggle()
-	if not self.isVisible then
+	if not self.wndMain:IsShown() then
 		self:OnShow()
 	else
 		self:OnClose()
@@ -129,15 +145,14 @@ function OrionChallenges:OnShow()
 	self.wndMain:Invoke()
 	self.timerPos:Start()
 	self:PopulateItemList()
-	self.isVisible = true
 	self:UpdateInterfaceMenuAlerts()
 end
 
 function OrionChallenges:OnClose()
 	self.wndMain:Show(false)
 	self.timerPos:Stop()
-	self.isVisible = false
 	self:UpdateInterfaceMenuAlerts()
+	self:OnSettingsClose()
 end
 
 function OrionChallenges:OnSubZoneChanged()
@@ -168,13 +183,13 @@ function OrionChallenges:TimerUpdateDistance()
 			math.abs(self.lastPosition.z - self.curPosition.z) < 0.01 then	
 			moving = false
 		end
-	
-		if moving then
-			for i=1, #self.tItems do
-				self:UpdateDistance(i)
-				self:HandleButtonControl(i)
-			end
+
+		for i=1, #self.tItems do
+			if moving then self:UpdateDistance(i) end
+			self:HandleButtonControl(i)
 		end
+		
+		
 		
 		self.lastZoneId = self.currentZoneId
 		self.tChallenges = self:GetChallengesByZoneSorted()
@@ -305,7 +320,7 @@ function OrionChallenges:HandleButtonControl(index)
 			sText = "Start"
 			sBGColor = "ff00ff00"
 		elseif challenge:IsActivated() then
-			sText = "Cancel"
+			sText = "Stop"
 			sBGColor = "ffda4f49"
 		elseif challenge:ShouldCollectReward() then
 			sText = "Loot"
@@ -412,6 +427,18 @@ function OrionChallenges:UpdateDistance(index, challenge)
 	if challenges[index] and wnd:GetData() and wnd:GetData().challenge and wnd:GetData().challenge:GetId() ~= challenges[index]:GetId() then
 		self:OnOrionChallengesOrderChanged()
 	end
+end
+
+-- Settings Frame
+function OrionChallenges:OnSettingsToggle()
+	self.wndSettings:Show(not self.wndSettings:IsShown())
+	if self.wndSettings:IsShown() then
+		self.wndSettings:ToFront()
+	end
+end
+
+function OrionChallenges:OnSettingsClose()
+	self.wndSettings:Show(false)
 end
 
 -----------------------------------------------------------------------------------------------
