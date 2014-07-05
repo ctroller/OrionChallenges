@@ -3,7 +3,7 @@ Displays a window with the nearest (a maximum of 10 at the time) challenges in y
 
  
 
-You can show up the addon by typing */oc* in the chat window or using the built-in menu bar in the bottom left of your interface.
+You can show up the addon by typing **/oc** in the chat window or using the built-in menu bar in the bottom left of your interface.
 Clicking on a Challenge Name displays a Hint Arrow to the Challenge Area.
 
  
@@ -13,6 +13,6 @@ Clicking on a Challenge Name displays a Hint Arrow to the Challenge Area.
 * Medal Standings
 * Challenge autostart & autocomplete
 * Filtering by type or ignoring challenges
-* Customizeable Settings
+* Customizable Settings
  * Max amount of items
  * Layout / Skinning

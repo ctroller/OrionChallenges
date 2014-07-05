@@ -32,7 +32,7 @@ local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 
 local bDebug = false
-local nVersion, nMinor, nTick = 0, 4, 1
+local nVersion, nMinor, nTick = 0, 4, 2
 local sAuthor = "Troxito@EU-Progenitor"
  
 -----------------------------------------------------------------------------------------------
@@ -102,8 +102,8 @@ function OrionChallenges:OnDocLoaded()
 		
 		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
 		self.timerPos:Stop()
-		self.currentMapId = self:GetCurrentMapId()
-		self.tChallenges = self:GetChallengesByMapSorted()
+		self.currentMapId = -1
+		self.tChallenges = {}
 		self.populating = false
 		
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetText("OrionChallenges v"..nVersion.."."..nMinor.."."..nTick)
@@ -153,8 +153,8 @@ end
 
 function OrionChallenges:OnSubZoneChanged()
 	if self.currentMapId ~= self:GetCurrentMapId() then
-		Debug("Map changed.")
-		self:PopulateItemList()
+		Debug("Map changed. From " .. self.currentMapId .. " to " .. self:GetCurrentMapId())
+		self:PopulateItemList(true)
 	end
 end
 
@@ -281,12 +281,7 @@ end
 
 function OrionChallenges:GetChallengesByMap(mapId)
 	mapId = mapId and mapId or self:GetCurrentMapId()
-	--Debug("Fetching challenges for map #"..mapId)
-
-	if self.cachedChallenges[mapId] ~= nil then
-		return self.cachedChallenges[mapId]
-	end
-
+	
 	local returnValue = {}
 	
 	for i, challenge in pairs(ChallengesLib.GetActiveChallengeList()) do
@@ -294,8 +289,6 @@ function OrionChallenges:GetChallengesByMap(mapId)
 			table.insert(returnValue, challenge)
 		end
 	end
-	
-	table.insert(self.cachedChallenges, mapId, returnValue)
 	
 	return returnValue
 end
@@ -399,8 +392,8 @@ end
 -- ItemList Functions
 -----------------------------------------------------------------------------------------------
 -- populate item list
-function OrionChallenges:PopulateItemList()
-	if not self.populating then
+function OrionChallenges:PopulateItemList(bForce)
+	if not self.populating or bForce then
 		Debug("Populating.")
 		self.populating = true
 		-- make sure the item list is empty to start with
