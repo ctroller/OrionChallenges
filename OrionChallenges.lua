@@ -11,6 +11,7 @@ require "ChallengesLib"
 -----------------------------------------------------------------------------------------------
 local OrionChallenges = {}
 
+-- Default OrionChallenges settings
 local DefaultSettings = {
 	nMaxItems			= 10,
 	iFilteredItems		= 0,
@@ -27,11 +28,15 @@ local DefaultSettings = {
 local kcrSelectedText = ApolloColor.new("UI_BtnTextHoloPressedFlyby")
 local kcrNormalText = ApolloColor.new("UI_BtnTextHoloNormal")
 
+-- Medal Sprite locations
 local ksSpriteBronzeMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierBronze"
 local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 
+-- Set this to true to enable debug outputs
 local bDebug = false
+
+-- Addon Version
 local nVersion, nMinor, nTick = 0, 4, 4
 local sAuthor = "Troxito@EU-Progenitor"
  
@@ -119,6 +124,10 @@ end
 -----------------------------------------------------------------------------------------------
 -- Define general functions here
 
+---------------------------------
+-- Prints a string to the debug chat channel
+-- @param str The string to print
+---------------------------------
 function Debug(str)
 	if bDebug then
 		Print(str)
@@ -137,6 +146,10 @@ end
 -----------------------------------------------------------------------------------------------
 -- Hook Functions
 -----------------------------------------------------------------------------------------------
+
+---------------------------------
+-- Invoked when the main window is shown
+---------------------------------
 function OrionChallenges:OnShow()
 	self.wndMain:Invoke()
 	self.timerPos:Start()
@@ -144,6 +157,9 @@ function OrionChallenges:OnShow()
 	self:UpdateInterfaceMenuAlerts()
 end
 
+---------------------------------
+-- Invoked when the main window is closed
+---------------------------------
 function OrionChallenges:OnClose()
 	self.wndMain:Show(false)
 	self.timerPos:Stop()
@@ -151,6 +167,9 @@ function OrionChallenges:OnClose()
 	self:OnSettingsClose()
 end
 
+---------------------------------
+-- Invoked when the player changes his subzone
+---------------------------------
 function OrionChallenges:OnSubZoneChanged()
 	if self.currentZoneId ~= GameLib.GetCurrentZoneId() then
 		Debug("Zone  changed. From " .. self.currentZoneId .. " to " .. GameLib.GetCurrentZoneId())
@@ -159,6 +178,10 @@ function OrionChallenges:OnSubZoneChanged()
 	end
 end
 
+---------------------------------
+-- Invoked every 0.5s
+-- Handles distance and button updates for every currently active challenge
+---------------------------------
 function OrionChallenges:TimerUpdateDistance()
 	if GameLib.GetPlayerUnit() then
 		self.curPosition = GameLib.GetPlayerUnit():GetPosition()
@@ -183,6 +206,9 @@ function OrionChallenges:TimerUpdateDistance()
 	end
 end
 
+---------------------------------
+-- Invoked when an item is clicked in the frame
+---------------------------------
 function OrionChallenges:OnListItemSelected(wndHandler, wndControl)
     -- make sure the wndControl is valid
     if wndHandler ~= wndControl then
@@ -205,6 +231,10 @@ function OrionChallenges:OnListItemSelected(wndHandler, wndControl)
 	ChallengesLib.ShowHintArrow(data.challenge:GetId())
 end
 
+
+---------------------------------
+-- Invoked when the challenge control button is clicked
+---------------------------------
 function OrionChallenges:OnChallengeControlClicked(wndHandler, wndControl)
 	if wndHandler ~= wndControl then
         return
@@ -220,10 +250,14 @@ function OrionChallenges:OnChallengeControlClicked(wndHandler, wndControl)
 			ChallengesLib.ShowHintArrow(challenge:GetId())
 			ChallengesLib.ActivateChallenge(challenge:GetId())
 		end
-
+		
+		self:HandleButtonControl(data.index)
 	end
 end
 
+---------------------------------
+-- Invoked when the interface menu list has loaded
+---------------------------------
 function OrionChallenges:OnInterfaceMenuListHasLoaded()
 	Event_FireGenericEvent("InterfaceMenuList_NewAddOn", "OrionChallenges", {"OrionChallengesToggle", "", "Icon_Windows32_UI_CRB_InterfaceMenu_ChallengeLog"})
 	self:UpdateInterfaceMenuAlerts()
@@ -233,11 +267,17 @@ function OrionChallenges:UpdateInterfaceMenuAlerts()
 	Event_FireGenericEvent("InterfaceMenuList_AlertAddOn", "OrionChallenges", {self.isVisible, nil, 0})
 end
 
+---------------------------------
+-- Invoked when the currently displayed challenge order has changed
+---------------------------------
 function OrionChallenges:OnOrionChallengesOrderChanged()
 	self.tChallenges = self:GetChallengesByZoneSorted()
 	self:PopulateItemList()
 end
 
+---------------------------------
+-- Enables window management support
+---------------------------------
 function OrionChallenges:OnWindowManagementReady()
     Event_FireGenericEvent("WindowManagementAdd", {wnd = self.wndMain, strName = "OrionChallenges"})
 end
@@ -245,25 +285,41 @@ end
 -----------------------------------------------------------------------------------------------
 -- General Functions
 -----------------------------------------------------------------------------------------------
+
+---------------------------------
+-- Returns the number of currently maximum displayed challenges
+-- @return Number of currently maximum displayed challenges
+---------------------------------
 function OrionChallenges:GetMaxChallenges()
 	local challenges = self.tChallenges
 	return #challenges < 10 and #challenges or 10
 end
 
+---------------------------------
+-- Resizes the main window to match the number of challenges displayed
+---------------------------------
 function OrionChallenges:ResizeHeight()
 	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
 	self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nTop + 40 + (25 * self:GetMaxChallenges()))
 end
 
+---------------------------------
+-- Invalidates the challenge cache
+---------------------------------
 function OrionChallenges:InvalidateCachedChallenges()
-	local ZoneId = GameLib.GetCurrentZoneId()
-	if ZoneId ~= nil and self.tCachedChallenges[ZoneId] ~= nil then
-		self.tCachedChallenges[ZoneId] = nil
+	local nZoneId = GameLib.GetCurrentZoneId()
+	if nZoneId ~= nil and self.tCachedChallenges[nZoneId] ~= nil then
+		self.tCachedChallenges[nZoneId] = nil
 	elseif ZoneId == -1 then
 		self.cachedChallenges = {}
 	end
 end
 
+---------------------------------
+-- Returns an unsorted list of challenges which belong to a given (default: current zone) zone
+-- @param nZoneId the zone id to filter challenges from
+-- @return A table of filtered challenges
+---------------------------------
 function OrionChallenges:GetChallengesByZone(nZoneId)
 	nZoneId = nZoneId and nZoneId or GameLib.GetCurrentZoneId()
 	
@@ -288,6 +344,11 @@ function OrionChallenges:GetChallengesByZone(nZoneId)
 	return returnValue
 end
 
+---------------------------------
+-- Returns an sorted (by distance) list of challenges which belong to a given (default: current zone) zone
+-- @param nZoneId the zone id to filter challenges from
+-- @return A table of filtered and sorted challenges
+---------------------------------
 function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	local challenges = self:GetChallengesByZone(nZoneId)
 	table.sort(challenges, function(challenge1, challenge2) 
@@ -300,6 +361,11 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	return challenges
 end
 
+---------------------------------
+-- Returns the distance in meters from the player to a challenge 
+-- @param challenge The challenge object to check agains
+-- @return Float representation of the distance in meters
+---------------------------------
 function OrionChallenges:GetChallengeDistance(challenge)
 	if challenge ~= nil and challenge:GetMapLocation() ~= nil then
 		local target = challenge:GetMapLocation()
@@ -312,6 +378,10 @@ function OrionChallenges:GetChallengeDistance(challenge)
 	return 0
 end
 
+---------------------------------
+-- Does the control button magicks
+-- @param index The selected button item index
+---------------------------------
 function OrionChallenges:HandleButtonControl(index)
 	local wnd = self.tItems[index]
 	if wnd then
@@ -410,6 +480,11 @@ function OrionChallenges:AddItem(index, challenge)
 	wnd:SetTooltip(challenge:GetDescription())
 end
 
+---------------------------------
+-- Updates the distance display of an item
+-- @param index The item index
+-- @param challenge The currently selected item challenge
+---------------------------------
 function OrionChallenges:UpdateDistance(index, challenge)
 	local wnd = self.tItems[index]
 	if wnd then
