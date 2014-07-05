@@ -262,7 +262,7 @@ end
 
 function OrionChallenges:ResizeHeight()
 	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
-	self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, 40 + (25 * self:GetMaxChallenges()))
+	self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nTop + 40 + (25 * self:GetMaxChallenges()))
 end
 
 function OrionChallenges:InvalidateCachedChallenges()
