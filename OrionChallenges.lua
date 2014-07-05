@@ -31,7 +31,7 @@ local ksSpriteBronzeMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierBronze"
 local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 
-local bDebug = true
+local bDebug = false
 local nVersion, nMinor, nTick = 0, 4, 1
 local sAuthor = "Troxito@EU-Progenitor"
  
