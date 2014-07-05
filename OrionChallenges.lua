@@ -93,7 +93,6 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterSlashCommand("oc", "OnOrionChallengesToggle", self)
 		
 		Apollo.RegisterEventHandler("SubZoneChanged",				"OnSubZoneChanged",					self)
-		Apollo.RegisterEventHandler("ChallengeUnlocked",			"InvalidateCachedChallenges",		self)
 		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded",	"OnInterfaceMenuListHasLoaded",		self)
 		Apollo.RegisterEventHandler("OrionChallengesToggle",		"OnOrionChallengesToggle",			self)
 		Apollo.RegisterEventHandler("OrionChallengesOrderChanged",	"OnOrionChallengesOrderChanged",	self)
@@ -156,10 +155,6 @@ function OrionChallenges:OnSubZoneChanged()
 		Debug("Map changed. From " .. self.currentMapId .. " to " .. self:GetCurrentMapId())
 		self:PopulateItemList(true)
 	end
-end
-
-function OrionChallenges:OnChallengeUnlocked()
-	self:invalidateCachedChallenges()
 end
 
 function OrionChallenges:TimerUpdateDistance()
