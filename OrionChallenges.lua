@@ -24,12 +24,6 @@ local DefaultSettings = {
 local kcrSelectedText = ApolloColor.new("UI_BtnTextHoloPressedFlyby")
 local kcrNormalText = ApolloColor.new("UI_BtnTextHoloNormal")
 
-local kbStateOutOfRange		= -1
-local kbStateStartable 		= 1
-local kbStateLootable 		= 2
-local kbStateActivated 		= 3
-local kbStateOnCooldown 	= 4
-
 local ksSpriteBronzeMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierBronze"
 local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
@@ -96,12 +90,12 @@ function OrionChallenges:OnDocLoaded()
 		-- e.g. Apollo.RegisterEventHandler("KeyDown", "OnKeyDown", self)
 		Apollo.RegisterSlashCommand("oc", "OnOrionChallengesToggle", self)
 		
-		Apollo.RegisterEventHandler("SubZoneChanged",				"OnSubZoneChanged", 				self)
-		Apollo.RegisterEventHandler("ChallengeUnlocked",			"OnChallengeUnlocked", 				self)
-		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded",	"OnInterfaceMenuListHasLoaded", 	self)
-		Apollo.RegisterEventHandler("OrionChallengesToggle",		"OnOrionChallengesToggle", 			self)
-		Apollo.RegisterEventHandler("OrionChallengesOrderChanged",	"OnOrionChallengesOrderChanged", 	self)
-		Apollo.RegisterEventHandler("WindowManagementReady",		"OnWindowManagementReady", 			self)
+		Apollo.RegisterEventHandler("SubZoneChanged",				"OnSubZoneChanged",					self)
+		Apollo.RegisterEventHandler("ChallengeUnlocked",			"OnChallengeUnlocked",				self)
+		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded",	"OnInterfaceMenuListHasLoaded",		self)
+		Apollo.RegisterEventHandler("OrionChallengesToggle",		"OnOrionChallengesToggle",			self)
+		Apollo.RegisterEventHandler("OrionChallengesOrderChanged",	"OnOrionChallengesOrderChanged",	self)
+		Apollo.RegisterEventHandler("WindowManagementReady",		"OnWindowManagementReady",			self)
 		
 		
 		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
