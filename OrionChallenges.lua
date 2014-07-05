@@ -31,8 +31,8 @@ local ksSpriteBronzeMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierBronze"
 local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 
-local bDebug = false
-local nVersion, nMinor, nTick = 0, 4, 0
+local bDebug = true
+local nVersion, nMinor, nTick = 0, 4, 1
 local sAuthor = "Troxito@EU-Progenitor"
  
 -----------------------------------------------------------------------------------------------
@@ -74,7 +74,6 @@ end
 -- OrionChallenges OnDocLoaded
 -----------------------------------------------------------------------------------------------
 function OrionChallenges:OnDocLoaded()
-
 	if self.xmlDoc ~= nil and self.xmlDoc:IsLoaded() then
 	    self.wndMain = Apollo.LoadForm(self.xmlDoc, "OrionChallengesForm", nil, self)
 		if self.wndMain == nil then
@@ -102,8 +101,8 @@ function OrionChallenges:OnDocLoaded()
 		
 		
 		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
-		self.currentMapId = GameLib.GetCurrentZoneMap().id
-		self.isVisible = false
+		self.timerPos:Stop()
+		self.currentMapId = self:GetCurrentMapId()
 		self.tChallenges = self:GetChallengesByMapSorted()
 		self.populating = false
 		
@@ -153,7 +152,8 @@ function OrionChallenges:OnClose()
 end
 
 function OrionChallenges:OnSubZoneChanged()
-	if self.currentMapId ~= GameLib.GetCurrentZoneMap().id then
+	if self.currentMapId ~= self:GetCurrentMapId() then
+		Debug("Map changed.")
 		self:PopulateItemList()
 	end
 end
@@ -163,7 +163,12 @@ function OrionChallenges:OnChallengeUnlocked()
 end
 
 function OrionChallenges:TimerUpdateDistance()
-	if self.currentMapId == -1 and GameLib:GetCurrentZoneMap() ~= nil then self.currentMapId = GameLib:GetCurrentZoneMap().id end
+	if self.currentMapId == -1 and GameLib.GetCurrentZoneMap() ~= nil then 
+		self.currentMapId = GameLib.GetCurrentZoneMap().id 
+		self:PopulateItemList() 
+		return
+	end
+	
 	if GameLib.GetPlayerUnit() then
 		self.curPosition = GameLib.GetPlayerUnit():GetPosition()
 		if self.curPosition == nil then return end
@@ -251,8 +256,22 @@ end
 -----------------------------------------------------------------------------------------------
 -- General Functions
 -----------------------------------------------------------------------------------------------
+function OrionChallenges:GetCurrentMapId()
+	return GameLib.GetCurrentZoneMap() ~= nil and GameLib.GetCurrentZoneMap().id or -1
+end
+
+function OrionChallenges:GetMaxChallenges()
+	local challenges = self:GetChallengesByMapSorted()
+	return #challenges < 10 and #challenges or 10
+end
+
+function OrionChallenges:ResizeHeight()
+	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
+	self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, 40 + (25 * self:GetMaxChallenges()))
+end
+
 function OrionChallenges:InvalidateCachedChallenges()
-	local mapId = GameLib.GetCurrentZoneMap().id
+	local mapId = self:GetCurrentMapId()
 	if mapId ~= nil and self.cachedChallenges[mapId] ~= nil then
 		self.cachedChallenges[mapId] = nil
 	elseif mapId == -1 then
@@ -261,7 +280,8 @@ function OrionChallenges:InvalidateCachedChallenges()
 end
 
 function OrionChallenges:GetChallengesByMap(mapId)
-	mapId = mapId and mapId or GameLib.GetCurrentZoneMap().id
+	mapId = mapId and mapId or self:GetCurrentMapId()
+	--Debug("Fetching challenges for map #"..mapId)
 
 	if self.cachedChallenges[mapId] ~= nil then
 		return self.cachedChallenges[mapId]
@@ -381,19 +401,20 @@ end
 -- populate item list
 function OrionChallenges:PopulateItemList()
 	if not self.populating then
+		Debug("Populating.")
 		self.populating = true
 		-- make sure the item list is empty to start with
 		self:DestroyItemList()
 	
 		local challenges = self:GetChallengesByMapSorted()
 		
-		local max = #challenges < 10 and #challenges or 10
-		for i = 1, max do
+		for i = 1, self:GetMaxChallenges() do
 			self:AddItem(i, challenges[i])
 		end
 		
 		-- now all the item are added, call ArrangeChildrenVert to list out the list items vertically
 		self.wndItemList:ArrangeChildrenVert()
+		self:ResizeHeight()
 		self.populating = false
 	end
 end
@@ -421,18 +442,20 @@ end
 
 function OrionChallenges:UpdateDistance(index, challenge)
 	local wnd = self.tItems[index]
-	local wndDistance = wnd:FindChild("Distance")
-	if challenge and challenge:GetMapLocation() ~= nil then
-		local distance = self:GetChallengeDistance(challenge)
-		wndDistance:SetText(math.floor(distance).."m")
-	else
-		wndDistance:SetText("?")
-	end
-	wndDistance:SetTextColor(kcrNormalText)
-	
-	local challenges = self:GetChallengesByMapSorted()
-	if challenges[index] and wnd:GetData() and wnd:GetData().challenge and wnd:GetData().challenge:GetId() ~= challenges[index]:GetId() then
-		self:OnOrionChallengesOrderChanged()
+	if wnd then
+		local wndDistance = wnd:FindChild("Distance")
+		if challenge and challenge:GetMapLocation() ~= nil then
+			local distance = self:GetChallengeDistance(challenge)
+			wndDistance:SetText(math.floor(distance).."m")
+		else
+			wndDistance:SetText("?")
+		end
+		wndDistance:SetTextColor(kcrNormalText)
+		
+		local challenges = self:GetChallengesByMapSorted()
+		if challenges[index] and wnd:GetData() and wnd:GetData().challenge and wnd:GetData().challenge:GetId() ~= challenges[index]:GetId() then
+			self:OnOrionChallengesOrderChanged()
+		end
 	end
 end
 
