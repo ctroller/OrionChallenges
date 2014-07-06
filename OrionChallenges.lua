@@ -164,6 +164,7 @@ end
 ---------------------------------
 function OrionChallenges:OnShow()
 	self.wndMain:Invoke()
+	self:LockUnlockWindow()
 	self.timerPos:Start()
 	self:PopulateItemList(true)
 	self:UpdateInterfaceMenuAlerts()
@@ -501,7 +502,7 @@ function OrionChallenges:UpdateDistance(index, challenge)
 		if challenge and challenge:GetMapLocation() ~= nil then
 			local distance = self:GetChallengeDistance(challenge)
 			wndDistance:SetText(math.floor(distance).."m")
-		else
+		elseif not self.tUserSettings.bHideUnderground then
 			-- challenge is underground
 			wndDistance:SetText("?")
 		end
@@ -590,7 +591,49 @@ function OrionChallenges:UpdateSettingControls()
 	wndHideOnChallenge:SetCheck(self.tUserSettings.bHideWindowOnChallenge)
 	wndHideUnderground:SetCheck(self.tUserSettings.bHideUnderground)
 	wndLockPosition:SetCheck(self.tUserSettings.bLockWindow)
-	self.wndMain:SetStyle("Moveable", self.tUserSettings.bLockWindow) 
+	self:LockUnlockWindow()
+end
+
+function OrionChallenges:OnMaxItemsChanged()
+	local val = self:GetSettingControl("MaxItems"):GetText()
+	if not tonumber(val) or tonumber(val) < 1 then
+		self:GetSettingControl("MaxItems"):SetText(self.tUserSettings.nMaxItems)
+		return
+	end
+	
+	self.tUserSettings.nMaxItems = tonumber(val)
+	self:OnSettingChanged()
+end
+
+function OrionChallenges:OnHideUndergroundChallengesToggle()
+	Debug("OnHideUndergroundChallengesToggle")
+	self.tUserSettings.bHideUnderground = self:GetSettingControl("HideUndergroundChallenges"):IsChecked()
+	self:OnSettingChanged()
+end
+
+function OrionChallenges:OnHideWindowOnChallengeToggle()
+	Debug("OnHideWindowOnChallengeToggle")
+	self.tUserSettings.bHideWindowOnChallenge = self:GetSettingControl("HideWindowOnChallenge"):IsChecked()
+	self:OnSettingChanged()
+end
+
+function OrionChallenges:OnLockWindowToggle()
+	Debug("OnLockWindowToggle")
+	self.tUserSettings.bLockWindow = self:GetSettingControl("LockWindow"):IsChecked()
+	self:LockUnlockWindow()
+	self:OnSettingChanged()
+end
+
+function OrionChallenges:OnSettingChanged()
+	self:PopulateItemList()
+end
+
+function OrionChallenges:LockUnlockWindow()
+	if self.tUserSettings.bLockWindow then
+		self.wndMain:RemoveStyle("Moveable")
+	else
+		self.wndMain:AddStyle("Moveable")
+	end
 end
 
 -----------------------------------------------------------------------------------------------
