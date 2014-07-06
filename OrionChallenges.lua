@@ -12,14 +12,19 @@ require "ChallengesLib"
 local OrionChallenges = {}
 
 -- Default OrionChallenges settings
-local DefaultSettings = {
-	nMaxItems			= 10,
-	iFilteredItems		= 0,
-	bLockWindow			= false,
-	bAutostart			= false,
-	bAutocollect		= false,
-	iAutocollectType	= 0
+local tDefaultSettings = {
+	nMaxItems				= 10,
+	iFilteredItems			= 0,
+	bLockWindow				= false,
+	bAutostart				= false,
+	bAutoloot				= false,
+	iAutolootType			= 0,
+	bHideWindowOnChallenge	= false,
+	bHideUnderground		= false,
+	bShowIgnoredChallenges	= false
 }
+
+local tUserSettings = {}
  
 -----------------------------------------------------------------------------------------------
 -- Constants
