@@ -300,7 +300,7 @@ end
 ---------------------------------
 function OrionChallenges:ResizeHeight()
 	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
-	self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nTop + 40 + (25 * self:GetMaxChallenges()))
+	self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nTop + 45 + (25 * self:GetMaxChallenges()))
 end
 
 ---------------------------------
@@ -426,6 +426,7 @@ function OrionChallenges:HandleButtonControl(index)
 end
 -----------------------------------------------------------------------------------------------
 -- Helper functions
+-- Taken from Carbine's ChallengeLog addon
 -----------------------------------------------------------------------------------------------
 function OrionChallenges:HelperIsInZone(tZoneRestrictionInfo)
 	return tZoneRestrictionInfo.idSubZone == 0 or GameLib.IsInWorldZone(tZoneRestrictionInfo.idSubZone)
@@ -493,6 +494,7 @@ function OrionChallenges:UpdateDistance(index, challenge)
 			local distance = self:GetChallengeDistance(challenge)
 			wndDistance:SetText(math.floor(distance).."m")
 		else
+			-- challenge is underground
 			wndDistance:SetText("?")
 		end
 		wndDistance:SetTextColor(kcrNormalText)
@@ -504,7 +506,9 @@ function OrionChallenges:UpdateDistance(index, challenge)
 	end
 end
 
+-----------------------------------------------------------------------------------------------
 -- Settings Frame
+-----------------------------------------------------------------------------------------------
 function OrionChallenges:OnSettingsToggle()
 	self.wndSettings:Show(not self.wndSettings:IsShown())
 	if self.wndSettings:IsShown() then
