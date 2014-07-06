@@ -23,8 +23,6 @@ local tDefaultSettings = {
 	bHideUnderground		= false,
 	bShowIgnoredChallenges	= false
 }
-
-local tUserSettings = {}
  
 -----------------------------------------------------------------------------------------------
 -- Constants
@@ -39,11 +37,13 @@ local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 
 -- Set this to true to enable debug outputs
-local bDebug = false
+local bDebug = true
 
 -- Addon Version
 local nVersion, nMinor, nTick = 0, 4, 4
 local sAuthor = "Troxito@EU-Progenitor"
+
+local bInitializing = false
  
 -----------------------------------------------------------------------------------------------
 -- Initialization
@@ -121,6 +121,12 @@ function OrionChallenges:OnDocLoaded()
 		
 		self.wndSettings = Apollo.LoadForm(self.xmlDoc, "Settings", nil, self)
 		self.wndSettings:Show(false)
+		
+		if not self.tUserSettings then
+			self.tUserSettings = tDefaultSettings
+		end
+		
+		Debug("Initialized")
 	end
 end
 
@@ -135,7 +141,7 @@ end
 ---------------------------------
 function Debug(str)
 	if bDebug then
-		Print(str)
+		Print("[OrionChallenges] " .. str)
 	end
 end
 
@@ -297,7 +303,7 @@ end
 ---------------------------------
 function OrionChallenges:GetMaxChallenges()
 	local challenges = self.tChallenges
-	return #challenges < 10 and #challenges or 10
+	return #challenges < self.tUserSettings.nMaxItems and #challenges or self.tUserSettings.nMaxItems
 end
 
 ---------------------------------
@@ -515,6 +521,42 @@ end
 
 function OrionChallenges:OnSettingsClose()
 	self.wndSettings:Show(false)
+end
+
+---------------------------------
+-- Invoked when the user reloads his UI or logs out
+-- @param eType the save level
+-- @return Table of user settings
+---------------------------------
+function OrionChallenges:OnSave(eType)
+	if eType ~= GameLib.CodeEnumAddonSaveLevel.Character then
+    	return nil
+  	end
+
+	Debug("OnSave")
+
+	return self.tUserSettings
+end
+
+---------------------------------
+-- Invoked when the addon is loaded
+-- @param eType the save level
+-- @param tSavedData the saved data
+---------------------------------
+function OrionChallenges:OnRestore(eType, tSavedData)
+	if eType ~= GameLib.CodeEnumAddonSaveLevel.Character then
+    	return nil
+  	end
+
+	Debug("OnRestore")
+
+	self.tUserSettings = tSavedData
+	-- merge changes
+	for k, v in pairs(tDefaultSettings) do
+		if not self.tUserSettings[k] then
+			self.tUserSettings[k] = v
+		end
+	end
 end
 
 -----------------------------------------------------------------------------------------------
