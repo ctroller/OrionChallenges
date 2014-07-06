@@ -126,6 +126,7 @@ function OrionChallenges:OnDocLoaded()
 			self.tUserSettings = tDefaultSettings
 		end
 		
+		self:UpdateSettingControls()
 		Debug("Initialized")
 	end
 end
@@ -312,6 +313,10 @@ end
 function OrionChallenges:ResizeHeight()
 	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
 	self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nTop + 45 + (25 * self:GetMaxChallenges()))
+	
+	if self.wndSettings:IsShown() then
+		self:RepositionSettingsFrame()
+	end
 end
 
 ---------------------------------
@@ -512,7 +517,15 @@ end
 -----------------------------------------------------------------------------------------------
 -- Settings Frame
 -----------------------------------------------------------------------------------------------
+function OrionChallenges:RepositionSettingsFrame()
+	local nWidth, nHeight = 400, 200
+	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
+	self.wndSettings:SetAnchorOffsets(nRight, nTop + 10, nRight + nWidth, nTop + 10 + nHeight)
+end
+
 function OrionChallenges:OnSettingsToggle()
+	-- set settings frame bounds
+	self:RepositionSettingsFrame()
 	self.wndSettings:Show(not self.wndSettings:IsShown())
 	if self.wndSettings:IsShown() then
 		self.wndSettings:ToFront()
@@ -557,6 +570,27 @@ function OrionChallenges:OnRestore(eType, tSavedData)
 			self.tUserSettings[k] = v
 		end
 	end
+end
+
+function OrionChallenges:GetSettingControl(sParent)
+	return self.wndSettings:FindChild("Content"):FindChild(sParent):FindChild("Control")
+end
+
+function OrionChallenges:UpdateSettingControls()
+	local wnd = self.wndSettings
+	local wndMaxItems			= self:GetSettingControl("MaxItems")
+	local wndAutostart			= self:GetSettingControl("Autostart")
+	local wndHideOnChallenge	= self:GetSettingControl("HideWindowOnChallenge")
+	local wndHideUnderground	= self:GetSettingControl("HideUndergroundChallenges")
+	local wndLockPosition		= self:GetSettingControl("LockWindow")
+	
+	Debug("Updating settings.")
+	wndMaxItems:SetText(self.tUserSettings.nMaxItems)
+	wndAutostart:SetCheck(self.tUserSettings.bAutostart)
+	wndHideOnChallenge:SetCheck(self.tUserSettings.bHideWindowOnChallenge)
+	wndHideUnderground:SetCheck(self.tUserSettings.bHideUnderground)
+	wndLockPosition:SetCheck(self.tUserSettings.bLockWindow)
+	self.wndMain:SetStyle("Moveable", self.tUserSettings.bLockWindow) 
 end
 
 -----------------------------------------------------------------------------------------------
