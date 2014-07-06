@@ -333,12 +333,6 @@ function OrionChallenges:GetChallengesByZone(nZoneId)
 		end
 	end
 	
-	
-	-- hackfix
-	if #returnValue > 0 then
-		table.insert(self.tCachedChallenges, nZoneId, returnValue)
-	end
-	
 	return returnValue
 end
 
