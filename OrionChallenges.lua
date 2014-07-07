@@ -107,6 +107,11 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterEventHandler("OrionChallengesToggle",		"OnOrionChallengesToggle",			self)
 		Apollo.RegisterEventHandler("OrionChallengesOrderChanged",	"OnOrionChallengesOrderChanged",	self)
 		Apollo.RegisterEventHandler("WindowManagementReady",		"OnWindowManagementReady",			self)
+        
+		Apollo.RegisterEventHandler("ChallengeActivate",		"OnChallengeActivate",			self)
+		Apollo.RegisterEventHandler("ChallengeAbandon",			"OnChallengeCompleted",			self)
+		Apollo.RegisterEventHandler("ChallengeCompleted",		"OnChallengeCompleted",			self)
+        
 		
 		
 		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
@@ -115,6 +120,7 @@ function OrionChallenges:OnDocLoaded()
 		self.tCachedChallenges = {}
 		self.tChallenges = {}
 		self.populating = false
+        self.bHiddenBySetting = false
 		
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetText("OrionChallenges v"..nVersion.."."..nMinor.."."..nTick)
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetTooltip("Written by "..sAuthor)
@@ -293,6 +299,24 @@ end
 ---------------------------------
 function OrionChallenges:OnWindowManagementReady()
     Event_FireGenericEvent("WindowManagementAdd", {wnd = self.wndMain, strName = "OrionChallenges"})
+end
+
+
+---------------------------------
+-- Challenge Hooks
+---------------------------------
+function OrionChallenges:OnChallengeActivate()
+    if self.tUserSettings.bHideWindowOnChallenge and self.wndMain:IsShown() then
+        self.bHiddenBySetting = true
+        self:OnClose()
+    end
+end
+
+function OrionChallenges:OnChallengeCompleted()
+    if self.tUserSettings.bHideWindowOnChallenge and self.bHiddenBySetting then
+        self.bHiddenBySetting = false
+        self:OnShow()
+    end
 end
 
 -----------------------------------------------------------------------------------------------
