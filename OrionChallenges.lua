@@ -108,9 +108,9 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterEventHandler("OrionChallengesOrderChanged",	"OnOrionChallengesOrderChanged",	self)
 		Apollo.RegisterEventHandler("WindowManagementReady",		"OnWindowManagementReady",			self)
         
-		Apollo.RegisterEventHandler("ChallengeActivate",		"OnChallengeActivate",			self)
-		Apollo.RegisterEventHandler("ChallengeAbandon",			"OnChallengeCompleted",			self)
-		Apollo.RegisterEventHandler("ChallengeCompleted",		"OnChallengeCompleted",			self)
+		Apollo.RegisterEventHandler("ChallengeActivate",			"OnChallengeActivate",				self)
+		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeAbandon",				self)
+		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeCompleted",				self)
         
 		
 		
@@ -120,7 +120,7 @@ function OrionChallenges:OnDocLoaded()
 		self.tCachedChallenges = {}
 		self.tChallenges = {}
 		self.populating = false
-        self.bHiddenBySetting = false
+		self.bHiddenBySetting = false
 		
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetText("OrionChallenges v"..nVersion.."."..nMinor.."."..nTick)
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetTooltip("Written by "..sAuthor)
@@ -391,7 +391,15 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 		return sameDist and challenge1:GetName() > challenge2:GetName() or dist1 < dist2
 	end)
 	
-	return challenges
+	-- filter based on user settings
+	local filteredChallenges = {}
+	for k, challenge in pairs(challenges) do
+		if not (self.tUserSettings.bHideUnderground and self:GetChallengeDistance(challenge) == nil) then
+			table.insert(challenge, filteredChallenges)
+		end
+	end
+	
+	return filteredChallenges
 end
 
 ---------------------------------
@@ -408,7 +416,7 @@ function OrionChallenges:GetChallengeDistance(challenge)
 		end
 	end
 	
-	return 0
+	return nil
 end
 
 ---------------------------------
@@ -526,7 +534,10 @@ function OrionChallenges:UpdateDistance(index, challenge)
 		if challenge and challenge:GetMapLocation() ~= nil then
 			local distance = self:GetChallengeDistance(challenge)
 			wndDistance:SetText(math.floor(distance).."m")
-		elseif not self.tUserSettings.bHideUnderground then
+			if self.tUserSettings.bAutostart and math.floor(distance) == 0 then
+				ChallengesLib.ActivateChallenge(challenge:GetId())
+			end
+		else
 			-- challenge is underground
 			wndDistance:SetText("?")
 		end
