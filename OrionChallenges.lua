@@ -37,6 +37,7 @@ local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 
 -- type filters
+-- combine filters for enabling multiple type filterling, like (FILTER_GENERAL + FILTER_COMBAT) = 9, etc
 local ktFilters = {
 	FILTER_GENERAL	= 1,
 	FILTER_ITEM		= 2,
@@ -129,6 +130,7 @@ function OrionChallenges:OnDocLoaded()
 		self.tChallenges = {}
 		self.populating = false
 		self.bHiddenBySetting = false
+		self.tIgnoredChallenges = {}
 		
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetText("OrionChallenges v"..nVersion.."."..nMinor.."."..nTick)
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetTooltip("Written by "..sAuthor)
@@ -412,7 +414,8 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 			--[[and not ((nChallengeType == CHALLENGE_GENERAL and self:HasFilter(ktFilters.FILTER_GENERAL))
 				or (nChallengeType == CHALLENGE_ITEM and self:HasFilter(ktFilters.FILTER_ITEM))
 				or (nChallengeType == CHALLENGE_ABILITY and self:HasFilter(ktFilters.FILTER_ABILITY))
-				or (nChallengeType == CHALLENGE_COMBAT and self:HasFilter(ktFilters.FILTER_COMBAT)) ]]--
+				or (nChallengeType == CHALLENGE_COMBAT and self:HasFilter(ktFilters.FILTER_COMBAT))) ]]--
+			-- and not (not self.tUserSettings.bShowIgnoredChallenges and self:IsIgnored(challenge))
 		then
 			table.insert(challenge, filteredChallenges)
 		end
@@ -426,6 +429,16 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	end)
 	
 	return filteredChallenges
+end
+
+function OrionChallenges:IgnoreChallenge(challenge, bIgnore)
+	local id = challenge:GetId()
+	bIgnore = (bIgnore == nil and true or bIgnore)
+	self.tIgnoredChallenges[id] = bIgnore
+end
+
+function OrionChallenges:IsIgnored(challenge)
+	return self.tIgnoredChallenges[challenge:GetId()] == true
 end
 
 ---------------------------------
