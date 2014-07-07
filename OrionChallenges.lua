@@ -109,7 +109,7 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterEventHandler("WindowManagementReady",		"OnWindowManagementReady",			self)
         
 		Apollo.RegisterEventHandler("ChallengeActivate",			"OnChallengeActivate",				self)
-		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeAbandon",				self)
+		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeCompleted",				self)
 		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeCompleted",				self)
         
 		
