@@ -109,7 +109,7 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterEventHandler("WindowManagementReady",		"OnWindowManagementReady",			self)
         
 		Apollo.RegisterEventHandler("ChallengeActivate",			"OnChallengeActivate",				self)
-		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeCompleted",				self)
+		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeAbandon",				self)
 		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeCompleted",				self)
         
 		
@@ -306,17 +306,28 @@ end
 -- Challenge Hooks
 ---------------------------------
 function OrionChallenges:OnChallengeActivate()
-    if self.tUserSettings.bHideWindowOnChallenge and self.wndMain:IsShown() then
-        self.bHiddenBySetting = true
-        self:OnClose()
-    end
+	if self.tUserSettings.bHideWindowOnChallenge and self.wndMain:IsShown() then
+		self.bHiddenBySetting = true
+		self:OnClose()
+	end
 end
 
-function OrionChallenges:OnChallengeCompleted()
-    if self.tUserSettings.bHideWindowOnChallenge and self.bHiddenBySetting then
-        self.bHiddenBySetting = false
-        self:OnShow()
-    end
+function OrionChallenges:ShowWindowAfterChallenge()
+	if self.tUserSettings.bHideWindowOnChallenge and self.bHiddenBySetting then
+		self.bHiddenBySetting = false
+		self:OnShow()
+	end
+end
+
+function OrionChallenges:OnChallengeAbadon()
+	self:ShowWindowAfterChallenge()
+end
+
+function OrionChallenges:OnChallengeCompleted(nChallengeId)
+	self:ShowWindowAfterChallenge()
+	if self.tUserSettings.bAutoloot then
+		Event_FireGenericEvent("ChallengeRewardShow", nChallengeId)
+	end
 end
 
 -----------------------------------------------------------------------------------------------
@@ -619,6 +630,7 @@ function OrionChallenges:UpdateSettingControls()
 	local wndHideOnChallenge	= self:GetSettingControl("HideWindowOnChallenge")
 	local wndHideUnderground	= self:GetSettingControl("HideUndergroundChallenges")
 	local wndLockPosition		= self:GetSettingControl("LockWindow")
+	local wndAutoloot			= self:GetSettingControl("Autoloot")
 	
 	Debug("Updating settings.")
 	wndMaxItems:SetText(self.tUserSettings.nMaxItems)
@@ -626,6 +638,7 @@ function OrionChallenges:UpdateSettingControls()
 	wndHideOnChallenge:SetCheck(self.tUserSettings.bHideWindowOnChallenge)
 	wndHideUnderground:SetCheck(self.tUserSettings.bHideUnderground)
 	wndLockPosition:SetCheck(self.tUserSettings.bLockWindow)
+	wndAutoloot:SetCheck(self.tUserSettings.bAutoloot)
 	self:LockUnlockWindow()
 end
 
@@ -656,6 +669,12 @@ function OrionChallenges:OnLockWindowToggle()
 	Debug("OnLockWindowToggle")
 	self.tUserSettings.bLockWindow = self:GetSettingControl("LockWindow"):IsChecked()
 	self:LockUnlockWindow()
+	self:OnSettingChanged()
+end
+
+function OrionChallenges:OnAutolootToggle()
+	Debug("OnAutolootToggle")
+	self.tUserSettings.bAutoloot = self:GetSettingControl("Autoloot"):IsChecked()
 	self:OnSettingChanged()
 end
 
