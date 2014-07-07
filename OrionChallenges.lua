@@ -40,8 +40,8 @@ local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 local ktFilters = {
 	FILTER_GENERAL	= 1,
 	FILTER_ITEM		= 2,
-	FILTER_ABILITY	= 3,
-	FILTER_COMBAT	= 4
+	FILTER_ABILITY	= 4,
+	FILTER_COMBAT	= 8
 }
 
 -- Set this to true to enable debug outputs
