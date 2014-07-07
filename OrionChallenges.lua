@@ -14,15 +14,14 @@ local OrionChallenges = {}
 
 -- Default OrionChallenges settings
 local tDefaultSettings = {
-	nMaxItems				= 10,
-	nFilteredItems			= 0,
-	bLockWindow				= false,
-	bAutostart				= false,
-	bAutoloot				= false,
-	iAutolootType			= 0,
-	bHideWindowOnChallenge	= false,
-	bHideUnderground		= false,
-	bShowIgnoredChallenges	= false
+	nMaxItems				= 10,		-- maximum number of displayed challenges
+	nFilteredChallenges		= 0,		-- BITWISE representation of filtered challenges -> see ktFilters for filter masks
+	bLockWindow				= false,	-- lock window position
+	bAutostart				= false,	-- autostart challenges
+	bAutoloot				= false,	-- autoloot challenges
+	bHideWindowOnChallenge	= false,	-- hide frame when starting a challenge
+	bHideUnderground		= false,	-- hide underground challenges, or else display it with "?" distance
+	bShowIgnoredChallenges	= false		-- show ignored challenges, NYI
 }
  
 -----------------------------------------------------------------------------------------------
@@ -404,12 +403,6 @@ end
 ---------------------------------
 function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	local challenges = self:GetChallengesByZone(nZoneId)
-	table.sort(challenges, function(challenge1, challenge2) 
-		local dist1 = self:GetChallengeDistance(challenge1)
-		local dist2 = self:GetChallengeDistance(challenge2)
-		local sameDist = dist1 == dist2
-		return sameDist and challenge1:GetName() > challenge2:GetName() or dist1 < dist2
-	end)
 	
 	-- filter based on user settings
 	local filteredChallenges = {}
@@ -420,10 +413,17 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 				or (nChallengeType == CHALLENGE_ITEM and self:HasFilter(ktFilters.FILTER_ITEM))
 				or (nChallengeType == CHALLENGE_ABILITY and self:HasFilter(ktFilters.FILTER_ABILITY))
 				or (nChallengeType == CHALLENGE_COMBAT and self:HasFilter(ktFilters.FILTER_COMBAT)) ]]--
-			then
+		then
 			table.insert(challenge, filteredChallenges)
 		end
 	end
+	
+	table.sort(filteredChallenges, function(challenge1, challenge2) 
+		local dist1 = self:GetChallengeDistance(challenge1)
+		local dist2 = self:GetChallengeDistance(challenge2)
+		local sameDist = dist1 == dist2
+		return sameDist and challenge1:GetName() > challenge2:GetName() or dist1 < dist2
+	end)
 	
 	return filteredChallenges
 end
@@ -580,7 +580,7 @@ end
 	return ( x1 & mask ) == mask
 ]]--
 function OrionChallenges:HasFilter(nFilter)
-	return bit.band(self.tUserSettings.nFilteredItems, nFilter) == nFilter
+	return bit.band(self.tUserSettings.nFilteredChallenges, nFilter) == nFilter
 end
 
 -----------------------------------------------------------------------------------------------
@@ -717,7 +717,7 @@ function OrionChallenges:OnFilterToggle()
 		end
 	end
 	
-	self.tUserSettings.nFilteredItems = nNewMask
+	self.tUserSettings.nFilteredChallenges = nNewMask
 	self:OnSettingChanged()
 end
 
