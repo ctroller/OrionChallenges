@@ -50,7 +50,7 @@ local ktFilters = {
 local bDebug = false
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 0, 0
+local nVersion, nMinor, nTick = 1, 0, 1
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
