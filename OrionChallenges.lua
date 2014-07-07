@@ -5,6 +5,7 @@
  
 require "Window"
 require "ChallengesLib"
+local bit = require "bit"
  
 -----------------------------------------------------------------------------------------------
 -- OrionChallenges Module Definition
@@ -14,7 +15,7 @@ local OrionChallenges = {}
 -- Default OrionChallenges settings
 local tDefaultSettings = {
 	nMaxItems				= 10,
-	iFilteredItems			= 0,
+	nFilteredItems			= 0,
 	bLockWindow				= false,
 	bAutostart				= false,
 	bAutoloot				= false,
@@ -35,6 +36,14 @@ local kcrNormalText = ApolloColor.new("UI_BtnTextHoloNormal")
 local ksSpriteBronzeMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierBronze"
 local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
+
+-- type filters
+local ktFilters = {
+	FILTER_GENERAL	= 1,
+	FILTER_ITEM		= 2,
+	FILTER_ABILITY	= 3,
+	FILTER_COMBAT	= 4
+}
 
 -- Set this to true to enable debug outputs
 local bDebug = true
@@ -405,7 +414,13 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	-- filter based on user settings
 	local filteredChallenges = {}
 	for k, challenge in pairs(challenges) do
-		if not (self.tUserSettings.bHideUnderground and self:GetChallengeDistance(challenge) == nil) then
+		--local nChallengeType = challenge:GetType()
+		if not (self.tUserSettings.bHideUnderground and self:GetChallengeDistance(challenge) == nil) 
+			--[[and not ((nChallengeType == CHALLENGE_GENERAL and self:HasFilter(ktFilters.FILTER_GENERAL))
+				or (nChallengeType == CHALLENGE_ITEM and self:HasFilter(ktFilters.FILTER_ITEM))
+				or (nChallengeType == CHALLENGE_ABILITY and self:HasFilter(ktFilters.FILTER_ABILITY))
+				or (nChallengeType == CHALLENGE_COMBAT and self:HasFilter(ktFilters.FILTER_COMBAT)) ]]--
+			then
 			table.insert(challenge, filteredChallenges)
 		end
 	end
@@ -561,6 +576,13 @@ function OrionChallenges:UpdateDistance(index, challenge)
 	end
 end
 
+--[[
+	return ( x1 & mask ) == mask
+]]--
+function OrionChallenges:HasFilter(nFilter)
+	return bit.band(self.tUserSettings.nFilteredItems, nFilter) == nFilter
+end
+
 -----------------------------------------------------------------------------------------------
 -- Settings Frame
 -----------------------------------------------------------------------------------------------
@@ -675,6 +697,27 @@ end
 function OrionChallenges:OnAutolootToggle()
 	Debug("OnAutolootToggle")
 	self.tUserSettings.bAutoloot = self:GetSettingControl("Autoloot"):IsChecked()
+	self:OnSettingChanged()
+end
+
+function OrionChallenges:OnFilterToggle()
+	Debug("OnFilterToggle")
+	local nNewMask = 0
+	local tControls = { 
+		{ control = self:GetSettingControl("FilterGeneral"),	mask = ktFilters.FILTER_GENERAL }, 
+		{ control = self:GetSettingControl("FilterItem"),		mask = ktFilters.FILTER_ITEM }, 
+		{ control = self:GetSettingControl("FilterAbility"),	mask = ktFilters.FILTER_ABILITY },
+		{ control = self:GetSettingControl("FilterCombat"),		mask = ktFilters.FILTER_COMBAT }
+	}
+	
+	for i=1, #tControls do
+		local obj = tControls[i]
+		if obj.control:IsChecked() then
+			nNewMask = nNewMask + obj.mask
+		end
+	end
+	
+	self.tUserSettings.nFilteredItems = nNewMask
 	self:OnSettingChanged()
 end
 
