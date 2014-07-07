@@ -5,7 +5,8 @@
  
 require "Window"
 require "ChallengesLib"
-local bit = require "bit"
+
+local bit = nil
  
 -----------------------------------------------------------------------------------------------
 -- OrionChallenges Module Definition
@@ -46,10 +47,10 @@ local ktFilters = {
 }
 
 -- Set this to true to enable debug outputs
-local bDebug = true
+local bDebug = false
 
 -- Addon Version
-local nVersion, nMinor, nTick = 0, 4, 4
+local nVersion, nMinor, nTick = 1, 0, 0
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
@@ -83,6 +84,7 @@ end
 -- OrionChallenges OnLoad
 -----------------------------------------------------------------------------------------------
 function OrionChallenges:OnLoad()
+	bit = Apollo.GetPackage("Orion:numberlua-1.0").tPackage.bit
     -- load our form file
 	self.xmlDoc = XmlDoc.CreateFromFile("OrionChallenges.xml")
 	self.xmlDoc:RegisterCallback("OnDocLoaded", self)
@@ -131,6 +133,7 @@ function OrionChallenges:OnDocLoaded()
 		self.populating = false
 		self.bHiddenBySetting = false
 		self.tIgnoredChallenges = {}
+		self.tChallengesById = {}
 		
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetText("OrionChallenges v"..nVersion.."."..nMinor.."."..nTick)
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetTooltip("Written by "..sAuthor)
@@ -323,14 +326,32 @@ function OrionChallenges:OnChallengeActivate()
 end
 
 function OrionChallenges:ShowWindowAfterChallenge()
+--	Debug("ShowWindowAfterChallenge: " .. self.tUserSettings.bHideWindowOnChallenge and 1 or 0 .. "|" .. self.bHiddenBySetting and 1 or 0)
 	if self.tUserSettings.bHideWindowOnChallenge and self.bHiddenBySetting then
 		self.bHiddenBySetting = false
 		self:OnShow()
 	end
 end
 
-function OrionChallenges:OnChallengeAbadon()
+function OrionChallenges:GetChallengeById(nChallengeId)
+	if self.tChallengesById[nChallengeId] ~= nil then
+		return self.tChallengesById[nChallengeId]
+	end
+	
+	for i, challenge in pairs(ChallengesLib.GetActiveChallengeList()) do
+		if i == nChallengeId then
+			self.tChallengesById[nChallengeId] = challenge
+			return challenge
+		end
+	end
+end
+
+function OrionChallenges:OnChallengeAbandon(nChallengeId)
 	self:ShowWindowAfterChallenge()
+	local challenge = self:GetChallengeById(nChallengeId)
+	if self.tUserSettings.bAutoloot and challenge:ShouldCollectReward() then
+		Event_FireGenericEvent("ChallengeRewardShow", nChallengeId)
+	end
 end
 
 function OrionChallenges:OnChallengeCompleted(nChallengeId)
@@ -409,15 +430,15 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	-- filter based on user settings
 	local filteredChallenges = {}
 	for k, challenge in pairs(challenges) do
-		--local nChallengeType = challenge:GetType()
+		local nChallengeType = challenge:GetType()
 		if not (self.tUserSettings.bHideUnderground and self:GetChallengeDistance(challenge) == nil) 
-			--[[and not ((nChallengeType == CHALLENGE_GENERAL and self:HasFilter(ktFilters.FILTER_GENERAL))
-				or (nChallengeType == CHALLENGE_ITEM and self:HasFilter(ktFilters.FILTER_ITEM))
-				or (nChallengeType == CHALLENGE_ABILITY and self:HasFilter(ktFilters.FILTER_ABILITY))
-				or (nChallengeType == CHALLENGE_COMBAT and self:HasFilter(ktFilters.FILTER_COMBAT))) ]]--
+			and not ((nChallengeType == ChallengesLib.ChallengeType_General and self:HasFilter(ktFilters.FILTER_GENERAL))
+				or (nChallengeType == ChallengesLib.ChallengeType_Item and self:HasFilter(ktFilters.FILTER_ITEM))
+				or (nChallengeType == ChallengesLib.ChallengeType_Ability and self:HasFilter(ktFilters.FILTER_ABILITY))
+				or (nChallengeType == ChallengesLib.ChallengeType_Combat and self:HasFilter(ktFilters.FILTER_COMBAT)))
 			-- and not (not self.tUserSettings.bShowIgnoredChallenges and self:IsIgnored(challenge))
 		then
-			table.insert(challenge, filteredChallenges)
+			table.insert(filteredChallenges, challenge)
 		end
 	end
 	
@@ -573,7 +594,7 @@ function OrionChallenges:UpdateDistance(index, challenge)
 		if challenge and challenge:GetMapLocation() ~= nil then
 			local distance = self:GetChallengeDistance(challenge)
 			wndDistance:SetText(math.floor(distance).."m")
-			if self.tUserSettings.bAutostart and math.floor(distance) == 0 then
+			if self.tUserSettings.bAutostart and math.floor(distance) <= 5 and not challenge:IsActivated() then
 				ChallengesLib.ActivateChallenge(challenge:GetId())
 			end
 		else
@@ -583,8 +604,12 @@ function OrionChallenges:UpdateDistance(index, challenge)
 		wndDistance:SetTextColor(kcrNormalText)
 		
 		local challenges = self.tChallenges
-		if challenges[index+1] and self:GetChallengeDistance(challenges[index+1]) < self:GetChallengeDistance(challenge) then
-			self:OnOrionChallengesOrderChanged()
+		if challenges[index+1] then
+			local d1 = self:GetChallengeDistance(challenges[index+1])
+			local d2 = self:GetChallengeDistance(challenge)
+			if d1 and d2 and d1 < d2 then
+				self:OnOrionChallengesOrderChanged()
+			end
 		end
 	end
 end
@@ -600,7 +625,7 @@ end
 -- Settings Frame
 -----------------------------------------------------------------------------------------------
 function OrionChallenges:RepositionSettingsFrame()
-	local nWidth, nHeight = 400, 200
+	local nWidth, nHeight = self.wndSettings:GetWidth(), self.wndSettings:GetHeight()
 	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
 	self.wndSettings:SetAnchorOffsets(nRight, nTop + 10, nRight + nWidth, nTop + 10 + nHeight)
 end
@@ -714,14 +739,24 @@ function OrionChallenges:OnAutolootToggle()
 	self:OnSettingChanged()
 end
 
+function OrionChallenges:OnAutostartToggle()
+	Debug("OnAutostartToggle")
+	self.tUserSettings.bAutostart = self:GetSettingControl("Autostart"):IsChecked()
+	self:OnSettingChanged()
+end
+
+function OrionChallenges:GetFilterControl(sFilter)
+	return self.wndSettings:FindChild("Content"):FindChild("Filter"):FindChild("Content"):FindChild(sFilter)
+end
+
 function OrionChallenges:OnFilterToggle()
 	Debug("OnFilterToggle")
 	local nNewMask = 0
 	local tControls = { 
-		{ control = self:GetSettingControl("FilterGeneral"),	mask = ktFilters.FILTER_GENERAL }, 
-		{ control = self:GetSettingControl("FilterItem"),		mask = ktFilters.FILTER_ITEM }, 
-		{ control = self:GetSettingControl("FilterAbility"),	mask = ktFilters.FILTER_ABILITY },
-		{ control = self:GetSettingControl("FilterCombat"),		mask = ktFilters.FILTER_COMBAT }
+		{ control = self:GetFilterControl("FilterGeneral"),	mask = ktFilters.FILTER_GENERAL }, 
+		{ control = self:GetFilterControl("FilterItem"),	mask = ktFilters.FILTER_ITEM }, 
+		{ control = self:GetFilterControl("FilterAbility"),	mask = ktFilters.FILTER_ABILITY },
+		{ control = self:GetFilterControl("FilterCombat"),	mask = ktFilters.FILTER_COMBAT }
 	}
 	
 	for i=1, #tControls do
@@ -730,6 +765,8 @@ function OrionChallenges:OnFilterToggle()
 			nNewMask = nNewMask + obj.mask
 		end
 	end
+	
+	Debug("New Mask: " .. nNewMask)
 	
 	self.tUserSettings.nFilteredChallenges = nNewMask
 	self:OnSettingChanged()
