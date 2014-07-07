@@ -44,6 +44,10 @@ local ktFilters = {
 	FILTER_COMBAT	= 4
 }
 
+for i=1, #ktFilters do
+	tDefaultSettings.nFilteredChallenges = tDefaultSettings.nFilteredChallenges + ktFilters[i]
+end
+
 -- Set this to true to enable debug outputs
 local bDebug = true
 
@@ -661,6 +665,7 @@ function OrionChallenges:UpdateSettingControls()
 	wndHideUnderground:SetCheck(self.tUserSettings.bHideUnderground)
 	wndLockPosition:SetCheck(self.tUserSettings.bLockWindow)
 	wndAutoloot:SetCheck(self.tUserSettings.bAutoloot)
+	self:OnFilterToggle()
 	self:LockUnlockWindow()
 end
 
