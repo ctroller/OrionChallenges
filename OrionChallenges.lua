@@ -445,6 +445,8 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	table.sort(filteredChallenges, function(challenge1, challenge2) 
 		local dist1 = self:GetChallengeDistance(challenge1)
 		local dist2 = self:GetChallengeDistance(challenge2)
+		if dist1 == nil and not self.tUserSettings.bHideUnderground then dist1 = -1 end
+		if dist2 == nil and not self.tUserSettings.bHideUnderground then dist2 = -1 end
 		local sameDist = dist1 == dist2
 		return sameDist and challenge1:GetName() > challenge2:GetName() or dist1 < dist2
 	end)
