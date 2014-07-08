@@ -1,6 +1,19 @@
 -----------------------------------------------------------------------------------------------
 -- Client Lua Script for OrionChallenges
 -- Copyright (c) NCsoft. All rights reserved
+-- 
+-- OrionChallenges (c) 2014 Christian Troller (http://www.christiantroller.ch) (http://www.github.com/ctroller)
+-- OrionChallenges can be downloaded from Curse (http://www.curse.com/ws-addons/wildstar/222022-orionchallenges)
+-- 
+-----------------------------------------------------------------------------------------------
+-- Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+-- the License. You may obtain a copy of the License at
+-- 
+-- http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+-- an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
 -----------------------------------------------------------------------------------------------
  
 require "Window"
@@ -674,6 +687,11 @@ function OrionChallenges:OnRestore(eType, tSavedData)
 
 	self.tUserSettings = tSavedData
 	-- merge changes
+	for k, v in pairs(self.tUserSettings) do
+		if not tDefaultSettings[k] then
+			table.remove(self.tUserSettings, k)
+		end
+	end
 	for k, v in pairs(tDefaultSettings) do
 		if not self.tUserSettings[k] then
 			self.tUserSettings[k] = v
@@ -681,10 +699,19 @@ function OrionChallenges:OnRestore(eType, tSavedData)
 	end
 end
 
+---------------------------------
+-- Returns the control element from a given parent under the uppermost Content settings window
+-- @param sParent the parent element name
+-- @return the child control element
+---------------------------------
 function OrionChallenges:GetSettingControl(sParent)
-	return self.wndSettings:FindChild("Content"):FindChild(sParent):FindChild("Control")
+	return self.wndSettings:FindChildByPath("Content/"..sParent.."/Control")
+	--return self.wndSettings:FindChild("Content"):FindChild(sParent):FindChild("Control")
 end
 
+---------------------------------
+-- Updates and sets the settings form elements to its corresponding values
+---------------------------------
 function OrionChallenges:UpdateSettingControls()
 	local wnd = self.wndSettings
 	local wndMaxItems			= self:GetSettingControl("MaxItems")
@@ -705,6 +732,9 @@ function OrionChallenges:UpdateSettingControls()
 	self:LockUnlockWindow()
 end
 
+---------------------------------
+-- Invoked when the user changes the max items setting
+---------------------------------
 function OrionChallenges:OnMaxItemsChanged()
 	local val = self:GetSettingControl("MaxItems"):GetText()
 	if not tonumber(val) or tonumber(val) < 1 then
@@ -716,18 +746,27 @@ function OrionChallenges:OnMaxItemsChanged()
 	self:OnSettingChanged()
 end
 
+---------------------------------
+-- Invoked when the user toggles the hide underground challenges setting
+---------------------------------
 function OrionChallenges:OnHideUndergroundChallengesToggle()
 	Debug("OnHideUndergroundChallengesToggle")
 	self.tUserSettings.bHideUnderground = self:GetSettingControl("HideUndergroundChallenges"):IsChecked()
 	self:OnSettingChanged()
 end
 
+---------------------------------
+-- Invoked when the user toggles the hide during challenge setting
+---------------------------------
 function OrionChallenges:OnHideWindowOnChallengeToggle()
 	Debug("OnHideWindowOnChallengeToggle")
 	self.tUserSettings.bHideWindowOnChallenge = self:GetSettingControl("HideWindowOnChallenge"):IsChecked()
 	self:OnSettingChanged()
 end
 
+---------------------------------
+-- Invoked when the user toggles the lock window position setting
+---------------------------------
 function OrionChallenges:OnLockWindowToggle()
 	Debug("OnLockWindowToggle")
 	self.tUserSettings.bLockWindow = self:GetSettingControl("LockWindow"):IsChecked()
@@ -735,22 +774,37 @@ function OrionChallenges:OnLockWindowToggle()
 	self:OnSettingChanged()
 end
 
+---------------------------------
+-- Invoked when the user toggles the automatically show reward window setting
+---------------------------------
 function OrionChallenges:OnAutolootToggle()
 	Debug("OnAutolootToggle")
 	self.tUserSettings.bAutoloot = self:GetSettingControl("Autoloot"):IsChecked()
 	self:OnSettingChanged()
 end
 
+---------------------------------
+-- Invoked when the user toggles the autostart challenges setting
+---------------------------------
 function OrionChallenges:OnAutostartToggle()
 	Debug("OnAutostartToggle")
 	self.tUserSettings.bAutostart = self:GetSettingControl("Autostart"):IsChecked()
 	self:OnSettingChanged()
 end
 
+---------------------------------
+-- Returns the filter control with the given name
+-- @param sFilter the filter name
+-- @return the window control for the given name
+---------------------------------
 function OrionChallenges:GetFilterControl(sFilter)
-	return self.wndSettings:FindChild("Content"):FindChild("Filter"):FindChild("Content"):FindChild(sFilter)
+	return self.wndSettings:FindChildByPath("Content/Filter/Content/"..sFilter)
+	--return self.wndSettings:FindChild("Content"):FindChild("Filter"):FindChild("Content"):FindChild(sFilter)
 end
 
+---------------------------------
+-- Invoked when the user toggles any of the filter settings
+---------------------------------
 function OrionChallenges:OnFilterToggle()
 	Debug("OnFilterToggle")
 	local nNewMask = 0
@@ -774,16 +828,86 @@ function OrionChallenges:OnFilterToggle()
 	self:OnSettingChanged()
 end
 
+---------------------------------
+-- Invoked when any of the settings changed. Repopulates the main window.
+---------------------------------
 function OrionChallenges:OnSettingChanged()
 	self:PopulateItemList()
 end
 
+---------------------------------
+-- Locks or unlocks the main window
+---------------------------------
 function OrionChallenges:LockUnlockWindow()
 	if self.tUserSettings.bLockWindow then
 		self.wndMain:RemoveStyle("Moveable")
 	else
 		self.wndMain:AddStyle("Moveable")
 	end
+end
+
+-----------------------------------------------------------------------------------------------
+-- Extensions
+-----------------------------------------------------------------------------------------------
+
+---------------------------------
+-- PHP-Like explode string splitting
+-- @param sString the string to split
+-- @param sSeparator the splitting separator
+-- @param nLimit limit of splittings, defaults to math.huge
+-- @return table containing the splitted string parts and the number of splits as second return value
+---------------------------------
+function string:split(sString, sSeparator, nLimit)
+	if not sString then return false end
+	if not sSeparator or sSeparator == "" then return false end
+	nLimit = nLimit or mhuge
+	if nLimit == 0 or nLimit == 1 then return {sString}, 1 end
+	
+	local tReturnValue = {}
+	local n, init = 0, 1
+	
+	while true do
+		local s, e = strfind(sString, sSeparator, init, true)
+		if not s then break end
+		tReturnValue[#tReturnValue+1] = strsub(sString, sSeparator, s - 1)
+		init = e + 1
+		n = n + 1
+		if n == nLimit - 1 then break end
+	end
+	
+	if init <= strlen(sString) then
+		tReturnValue[#tReturnValue+1] = strsub(sString, init)
+	else
+		tReturnValue[#tReturnValue+1] = ""
+	end
+	
+	n = n+1
+	
+	if limit < 0 then
+		for i=n, n + nLimit + 1, -1 do tReturnValue[i] = nil end
+		n = n + nLimit
+	end
+	
+	return tReturnValue, n
+end
+
+---------------------------------
+-- Tries to find a window child by a given XML-Like path
+-- @param sPath the child window path
+-- @param sSeparator The path separator, defaults to '/'
+-- @return The found child window or nil
+---------------------------------
+function Window:FindChildByPath(sPath, sSeparator)
+	sSeparator = sSeparator or "/"
+	local tParts = sPath:split(sSeparator)
+	local wndCurrent = self
+	for k, v in pairs(tParts) do
+		if (wndCurrent = wndCurrent:FindChild(v)) == nil then
+			return nil
+		end
+	end
+	
+	return wndCurrent
 end
 
 -----------------------------------------------------------------------------------------------
