@@ -217,7 +217,7 @@ end
 ---------------------------------
 function OrionChallenges:OnSubZoneChanged()
 	if self.currentZoneId ~= GameLib.GetCurrentZoneId() then
-		Debug("Zone  changed. From " .. self.currentZoneId .. " to " .. GameLib.GetCurrentZoneId())
+		Debug("Zone changed. From " .. self.currentZoneId .. " to " .. GameLib.GetCurrentZoneId())
 		self.currentZoneId = GameLib.GetCurrentZoneId()
 		self:PopulateItemList(true)
 	end
@@ -248,6 +248,27 @@ function OrionChallenges:TimerUpdateDistance()
 		end
 		
 		self.lastZoneId = self.currentZoneId
+	end
+end
+
+function OrionChallenges:OnIgnoreChallengeToggle(wndHandler, wndControl)
+	if wndHandler ~= wndControl then return end
+	
+	local data = wndControl:GetParent():GetData()
+	if data ~= nil then
+		local challenge = data.challenge
+		local sSprite = "SPRITE_IGNORE"
+		if self:IsIgnored(challenge) then
+			self:IgnoreChallenge(challenge, false)
+		else
+			sSprite = "SPRITE_UNIGNORE"
+			self:IgnoreChallenge(challenge, true)
+		end
+		
+		self.wndControl:SetSprite(sSprite)
+		if not self.tUserSettings.bShowIgnoredChallenges then
+			self:PopulateItemList()
+		end
 	end
 end
 
