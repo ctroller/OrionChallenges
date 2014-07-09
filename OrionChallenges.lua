@@ -63,7 +63,7 @@ local ktFilters = {
 -- Set this to true to enable debug outputs
 local bDebug = false
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 1, 1
+local nVersion, nMinor, nTick = 1, 1, 2
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
@@ -672,7 +672,13 @@ end
 function OrionChallenges:RepositionSettingsFrame()
 	local nWidth, nHeight = self.wndSettings:GetWidth(), self.wndSettings:GetHeight()
 	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
-	self.wndSettings:SetAnchorOffsets(nRight, nTop + 10, nRight + nWidth, nTop + 10 + nHeight)
+	local nsWidth, _ = Apollo.GetScreenSize()
+	Debug(nLeft ..";" .. nWidth .. ";" .. nsWidth)
+	if nLeft + nWidth > nsWidth - nWidth then
+		self.wndSettings:SetAnchorOffsets(nLeft - nWidth, nTop + 10, nLeft, nTop + 10 + nHeight)
+	else
+		self.wndSettings:SetAnchorOffsets(nRight, nTop + 10, nRight + nWidth, nTop + 10 + nHeight)
+	end
 end
 
 function OrionChallenges:OnSettingsToggle()
