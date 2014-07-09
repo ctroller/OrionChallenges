@@ -35,7 +35,8 @@ local tDefaultSettings = {
 	bAutoloot				= false,	-- autoloot challenges
 	bHideWindowOnChallenge	= false,	-- hide frame when starting a challenge
 	bHideUnderground		= false,	-- hide underground challenges, or else display it with "?" distance
-	bShowIgnoredChallenges	= false		-- show ignored challenges, NYI
+	bShowIgnoredChallenges	= false,	-- show ignored challenges, NYI
+	tIgnoredChallenges		= {}
 }
  
 -----------------------------------------------------------------------------------------------
@@ -61,9 +62,8 @@ local ktFilters = {
 
 -- Set this to true to enable debug outputs
 local bDebug = false
-
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 0, 1
+local nVersion, nMinor, nTick = 1, 1, 0
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
@@ -145,7 +145,6 @@ function OrionChallenges:OnDocLoaded()
 		self.tChallenges = {}
 		self.populating = false
 		self.bHiddenBySetting = false
-		self.tIgnoredChallenges = {}
 		self.tChallengesById = {}
 		
 		self.wndMain:FindChild("Header"):FindChild("Title"):SetText("OrionChallenges v"..nVersion.."."..nMinor.."."..nTick)
@@ -253,22 +252,19 @@ end
 
 function OrionChallenges:OnIgnoreChallengeToggle(wndHandler, wndControl)
 	if wndHandler ~= wndControl then return end
-	
 	local data = wndControl:GetParent():GetData()
+	
+	Debug("OnIgnoreChallengeToggle")
 	if data ~= nil then
 		local challenge = data.challenge
-		local sSprite = "SPRITE_IGNORE"
 		if self:IsIgnored(challenge) then
 			self:IgnoreChallenge(challenge, false)
 		else
-			sSprite = "SPRITE_UNIGNORE"
 			self:IgnoreChallenge(challenge, true)
 		end
 		
-		self.wndControl:SetSprite(sSprite)
-		if not self.tUserSettings.bShowIgnoredChallenges then
-			self:PopulateItemList()
-		end
+		self:PopulateItemList()
+		self:HandleButtonControl(data.index)
 	end
 end
 
@@ -465,12 +461,15 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	local filteredChallenges = {}
 	for k, challenge in pairs(challenges) do
 		local nChallengeType = challenge:GetType()
+		if self:IsIgnored(challenge) then
+			Debug("Challenge " .. challenge:GetName() .. " is ignored. Display? " .. (self.tUserSettings.bShowIgnoredChallenges and "true" or "false"))
+		end
 		if not (self.tUserSettings.bHideUnderground and self:GetChallengeDistance(challenge) == nil) 
 			and not ((nChallengeType == ChallengesLib.ChallengeType_General and self:HasFilter(ktFilters.FILTER_GENERAL))
 				or (nChallengeType == ChallengesLib.ChallengeType_Item and self:HasFilter(ktFilters.FILTER_ITEM))
 				or (nChallengeType == ChallengesLib.ChallengeType_Ability and self:HasFilter(ktFilters.FILTER_ABILITY))
 				or (nChallengeType == ChallengesLib.ChallengeType_Combat and self:HasFilter(ktFilters.FILTER_COMBAT)))
-			-- and not (not self.tUserSettings.bShowIgnoredChallenges and self:IsIgnored(challenge))
+			and not (not self.tUserSettings.bShowIgnoredChallenges and self:IsIgnored(challenge))
 		then
 			table.insert(filteredChallenges, challenge)
 		end
@@ -491,11 +490,11 @@ end
 function OrionChallenges:IgnoreChallenge(challenge, bIgnore)
 	local id = challenge:GetId()
 	bIgnore = (bIgnore == nil and true or bIgnore)
-	self.tIgnoredChallenges[id] = bIgnore
+	self.tUserSettings.tIgnoredChallenges[id] = bIgnore and bIgnore or nil
 end
 
 function OrionChallenges:IsIgnored(challenge)
-	return self.tIgnoredChallenges[challenge:GetId()] == true
+	return self.tUserSettings.tIgnoredChallenges[challenge:GetId()] == true
 end
 
 ---------------------------------
@@ -527,6 +526,7 @@ function OrionChallenges:HandleButtonControl(index)
 		local wndDistance = wnd:FindChild("Distance")
 		local wndControl = wnd:FindChild("Control")
 		local wndTimer = wnd:FindChild("Timer")
+		local wndIgnore = wnd:FindChild("Ignore")
 	
 		local startable = not challenge:IsInCooldown() and self:IsStartable(challenge)
 				and not challenge:IsActivated() and not challenge:ShouldCollectReward() 
@@ -551,6 +551,13 @@ function OrionChallenges:HandleButtonControl(index)
 			bEnableCtrl = false
 		end
 		
+		local sTooltip = "Visible"
+		if self:IsIgnored(challenge) then
+			sTooltip = "Ignored"
+		end
+		
+		wndIgnore:SetCheck(not self:IsIgnored(challenge))
+		wndIgnore:SetTooltip(sTooltip)
 		wndControl:SetText(sText)
 		wndControl:SetBGColor(sBGColor)
 		wndControl:Show(bEnableCtrl)
@@ -708,11 +715,6 @@ function OrionChallenges:OnRestore(eType, tSavedData)
 
 	self.tUserSettings = tSavedData
 	-- merge changes
-	for k, v in pairs(self.tUserSettings) do
-		if not tDefaultSettings[k] then
-			table.remove(self.tUserSettings, k)
-		end
-	end
 	for k, v in pairs(tDefaultSettings) do
 		if not self.tUserSettings[k] then
 			self.tUserSettings[k] = v
@@ -726,8 +728,7 @@ end
 -- @return the child control element
 ---------------------------------
 function OrionChallenges:GetSettingControl(sParent)
-	return self.wndSettings:FindChildByPath("Content/"..sParent.."/Control")
-	--return self.wndSettings:FindChild("Content"):FindChild(sParent):FindChild("Control")
+	return self:FindChildByPath(self.wndSettings, "Content/"..sParent.."/Control")
 end
 
 ---------------------------------
@@ -741,6 +742,7 @@ function OrionChallenges:UpdateSettingControls()
 	local wndHideUnderground	= self:GetSettingControl("HideUndergroundChallenges")
 	local wndLockPosition		= self:GetSettingControl("LockWindow")
 	local wndAutoloot			= self:GetSettingControl("Autoloot")
+	local wndIgnoredChallenges	= self:GetSettingControl("ShowIgnoredChallenges")
 	
 	Debug("Updating settings.")
 	wndMaxItems:SetText(self.tUserSettings.nMaxItems)
@@ -749,6 +751,7 @@ function OrionChallenges:UpdateSettingControls()
 	wndHideUnderground:SetCheck(self.tUserSettings.bHideUnderground)
 	wndLockPosition:SetCheck(self.tUserSettings.bLockWindow)
 	wndAutoloot:SetCheck(self.tUserSettings.bAutoloot)
+	wndIgnoredChallenges:SetCheck(self.tUserSettings.bShowIgnoredChallenges)
 	self:OnFilterToggle()
 	self:LockUnlockWindow()
 end
@@ -814,13 +817,21 @@ function OrionChallenges:OnAutostartToggle()
 end
 
 ---------------------------------
+-- Invoked when the user toggles the show ignored challenges setting
+---------------------------------
+function OrionChallenges:OnShowIgnoredChallengesToggle()
+	Debug("OnShowIgnoredChallengesToggle")
+	self.tUserSettings.bShowIgnoredChallenges = self:GetSettingControl("ShowIgnoredChallenges"):IsChecked()
+	self:OnSettingChanged()
+end
+
+---------------------------------
 -- Returns the filter control with the given name
 -- @param sFilter the filter name
 -- @return the window control for the given name
 ---------------------------------
 function OrionChallenges:GetFilterControl(sFilter)
-	return self.wndSettings:FindChildByPath("Content/Filter/Content/"..sFilter)
-	--return self.wndSettings:FindChild("Content"):FindChild("Filter"):FindChild("Content"):FindChild(sFilter)
+	return self:FindChildByPath(self.wndSettings, "Content/Filter/Content/"..sFilter)
 end
 
 ---------------------------------
@@ -872,44 +883,28 @@ end
 -----------------------------------------------------------------------------------------------
 
 ---------------------------------
--- PHP-Like explode string splitting
--- @param sString the string to split
--- @param sSeparator the splitting separator
--- @param nLimit limit of splittings, defaults to math.huge
--- @return table containing the splitted string parts and the number of splits as second return value
+-- String splitting
+-- @param str the string to split
+-- @param pat the splitting pattern
+-- @return table containing the splitted string parts
 ---------------------------------
-function string:split(sString, sSeparator, nLimit)
-	if not sString then return false end
-	if not sSeparator or sSeparator == "" then return false end
-	nLimit = nLimit or mhuge
-	if nLimit == 0 or nLimit == 1 then return {sString}, 1 end
-	
-	local tReturnValue = {}
-	local n, init = 0, 1
-	
-	while true do
-		local s, e = strfind(sString, sSeparator, init, true)
-		if not s then break end
-		tReturnValue[#tReturnValue+1] = strsub(sString, sSeparator, s - 1)
-		init = e + 1
-		n = n + 1
-		if n == nLimit - 1 then break end
+function string.split(str, pat)
+	local t = {}  -- NOTE: use {n = 0} in Lua-5.0
+	local fpat = "(.-)" .. pat
+	local last_end = 1
+	local s, e, cap = str:find(fpat, 1)
+	while s do
+		if s ~= 1 or cap ~= "" then
+			table.insert(t,cap)
+		end
+		last_end = e+1
+		s, e, cap = str:find(fpat, last_end)
 	end
-	
-	if init <= strlen(sString) then
-		tReturnValue[#tReturnValue+1] = strsub(sString, init)
-	else
-		tReturnValue[#tReturnValue+1] = ""
+	if last_end <= #str then
+		cap = str:sub(last_end)
+		table.insert(t, cap)
 	end
-	
-	n = n+1
-	
-	if limit < 0 then
-		for i=n, n + nLimit + 1, -1 do tReturnValue[i] = nil end
-		n = n + nLimit
-	end
-	
-	return tReturnValue, n
+	return t
 end
 
 ---------------------------------
@@ -918,14 +913,17 @@ end
 -- @param sSeparator The path separator, defaults to '/'
 -- @return The found child window or nil
 ---------------------------------
-function Window:FindChildByPath(sPath, sSeparator)
+function OrionChallenges:FindChildByPath(wndParent, sPath, sSeparator)
 	sSeparator = sSeparator or "/"
 	local tParts = sPath:split(sSeparator)
-	local wndCurrent = self
+	local wndCurrent = wndParent
 	for k, v in pairs(tParts) do
-		if (wndCurrent = wndCurrent:FindChild(v)) == nil then
+		local wnd = wndCurrent:FindChild(v)
+		if wnd == nil then
 			return nil
 		end
+		
+		wndCurrent = wnd
 	end
 	
 	return wndCurrent
