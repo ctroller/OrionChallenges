@@ -63,7 +63,7 @@ local ktFilters = {
 -- Set this to true to enable debug outputs
 local bDebug = false
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 1, 0
+local nVersion, nMinor, nTick = 1, 1, 1
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
@@ -551,13 +551,15 @@ function OrionChallenges:HandleButtonControl(index)
 			bEnableCtrl = false
 		end
 		
-		local sTooltip = "Visible"
-		if self:IsIgnored(challenge) then
-			sTooltip = "Ignored"
+		if wndIgnore then
+			local sTooltip = "Visible"
+			if self:IsIgnored(challenge) then
+				sTooltip = "Ignored"
+			end
+			
+			wndIgnore:SetCheck(not self:IsIgnored(challenge))
+			wndIgnore:SetTooltip(sTooltip)
 		end
-		
-		wndIgnore:SetCheck(not self:IsIgnored(challenge))
-		wndIgnore:SetTooltip(sTooltip)
 		wndControl:SetText(sText)
 		wndControl:SetBGColor(sBGColor)
 		wndControl:Show(bEnableCtrl)
