@@ -36,7 +36,8 @@ local tDefaultSettings = {
 	bHideWindowOnChallenge	= false,	-- hide frame when starting a challenge
 	bHideUnderground		= false,	-- hide underground challenges, or else display it with "?" distance
 	bShowIgnoredChallenges	= false,	-- show ignored challenges, NYI
-	tIgnoredChallenges		= {}
+	tIgnoredChallenges		= {},
+	bShown					= false
 }
  
 -----------------------------------------------------------------------------------------------
@@ -51,6 +52,8 @@ local ksSpriteBronzeMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierBronze"
 local ksSpriteSilverMedal	= "CRB_ChallengeTrackerSprites:sprChallengeTierSilver"
 local ksSpriteGoldMedal		= "CRB_ChallengeTrackerSprites:sprChallengeTierGold"
 
+local ksSpriteChallenge		= "CRB_ChallengeTrackerSprites:sprChallengeTypeGenericLarge"
+
 -- type filters
 -- combine filters for enabling multiple type filterling, like (FILTER_GENERAL + FILTER_COMBAT) = 9, etc
 local ktFilters = {
@@ -61,7 +64,7 @@ local ktFilters = {
 }
 
 -- Set this to true to enable debug outputs
-local bDebug = false
+local bDebug = true
 -- Addon Version
 local nVersion, nMinor, nTick = 1, 1, 2
 local sAuthor = "Troxito@EU-Progenitor"
@@ -116,7 +119,7 @@ function OrionChallenges:OnDocLoaded()
 
 		-- item list
 		self.wndItemList = self.wndMain:FindChild("ItemList")
-	    self.wndMain:Show(false, true)
+		self.wndMain:Show(false, true)
 
 		-- if the xmlDoc is no longer needed, you should set it to nil
 		-- self.xmlDoc = nil
@@ -137,8 +140,10 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeCompleted",				self)
         
 		
-		
+		self.zoneMap = Apollo.GetAddon("ZoneMap")
+		self.eObjectTypeChallenge = self.zoneMap.eObjectTypeChallenge
 		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
+		self.timerMap = ApolloTimer.Create(0.5, true, "TimerZoneMap", self)
 		self.timerPos:Stop()
 		self.currentZoneId = -1
 		self.tCachedChallenges = {}
@@ -157,7 +162,22 @@ function OrionChallenges:OnDocLoaded()
 			self.tUserSettings = tDefaultSettings
 		end
 		
+		self.tInfo = self.zoneMap:GetDefaultUnitInfo()
+		--[[{
+			strIcon 		= "IconSprites:Icon_MapNode_Map_Generic_POI",
+			strIconEdge 	= "",
+			crObject 		= CColor.new(1, 1, 1, 1),
+			crEdge 			= CColor.new(1, 1, 1, 1),
+			bAboveOverlay 	= false
+		}]]--
+		
 		self:UpdateSettingControls()
+		
+		if self.tUserSettings.bShown and self.wndMain and not self.wndMain:IsShown() then
+			self:RestoreWindowPosition()
+			self:OnShow()
+		end
+			
 		Debug("Initialized")
 	end
 end
@@ -190,6 +210,12 @@ end
 -- Hook Functions
 -----------------------------------------------------------------------------------------------
 
+function OrionChallenges:RestoreWindowPosition()
+	if self.wndMain and self.tUserSettings.tAnchor ~= nil then
+		self.wndMain:SetAnchorOffsets(unpack(self.tUserSettings.tAnchor))
+	end
+end
+
 ---------------------------------
 -- Invoked when the main window is shown
 ---------------------------------
@@ -199,6 +225,7 @@ function OrionChallenges:OnShow()
 	self.timerPos:Start()
 	self:PopulateItemList(true)
 	self:UpdateInterfaceMenuAlerts()
+	self.tUserSettings.bShown = true
 end
 
 ---------------------------------
@@ -209,6 +236,8 @@ function OrionChallenges:OnClose()
 	self.timerPos:Stop()
 	self:UpdateInterfaceMenuAlerts()
 	self:OnSettingsClose()
+	self.tUserSettings.tAnchor = {self.wndMain:GetAnchorOffsets()}
+	self.tUserSettings.bShown = false
 end
 
 ---------------------------------
@@ -219,6 +248,24 @@ function OrionChallenges:OnSubZoneChanged()
 		Debug("Zone changed. From " .. self.currentZoneId .. " to " .. GameLib.GetCurrentZoneId())
 		self.currentZoneId = GameLib.GetCurrentZoneId()
 		self:PopulateItemList(true)
+	end
+end
+
+function OrionChallenges:AddToZoneMap(challenge)
+	if self.zoneMap and self.zoneMap.AddObject then
+		local loc = challenge:GetMapLocation()
+		self.zoneMap:AddObject(self.eObjectTypeChallenge, loc, challenge:GetName())
+		--Debug("Add Object " .. challenge:GetName() .. " at pos "..loc.x..", "..loc.y..", "..loc.z..".")
+	end
+end
+
+function OrionChallenges:TimerZoneMap()
+	if self.zoneMap.wndZoneMap ~= nil then
+		self.zoneMap = self.zoneMap.wndZoneMap
+		self.timerMap:Stop()
+		for k, challenge in pairs(self.tChallenges) do
+			self:AddToZoneMap(challenge)
+		end
 	end
 end
 
@@ -596,9 +643,11 @@ function OrionChallenges:PopulateItemList(bForce)
 		local challenges = self:GetChallengesByZoneSorted()
 		self.tChallenges = challenges		
 		for i = 1, self:GetMaxChallenges() do
-			self:AddItem(i, challenges[i])
+			local clg = challenges[i]
+			self:AddItem(i, clg)	
+			self:AddToZoneMap(clg)
 		end
-		
+
 		-- now all the item are added, call ArrangeChildrenVert to list out the list items vertically
 		self.wndItemList:ArrangeChildrenVert()
 		self:ResizeHeight()
@@ -937,7 +986,20 @@ function OrionChallenges:FindChildByPath(wndParent, sPath, sSeparator)
 	return wndCurrent
 end
 
------------------------------------------------------------------------------------------------
+function table.tostring( tbl )
+  local result, done = {}, {}
+  for k, v in ipairs( tbl ) do
+    table.insert( result, table.val_to_str( v ) )
+    done[ k ] = true
+  end
+  for k, v in pairs( tbl ) do
+    if not done[ k ] then
+      table.insert( result,
+        table.key_to_str( k ) .. "=" .. table.val_to_str( v ) )
+    end
+  end
+  return "{" .. table.concat( result, "," ) .. "}"
+end------------------------------------------------------------------------------------
 -- OrionChallenges Instance
 -----------------------------------------------------------------------------------------------
 local OrionChallengesInst = OrionChallenges:new()
