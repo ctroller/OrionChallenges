@@ -37,7 +37,8 @@ local tDefaultSettings = {
 	bHideUnderground		= false,	-- hide underground challenges, or else display it with "?" distance
 	bShowIgnoredChallenges	= false,	-- show ignored challenges, NYI
 	tIgnoredChallenges		= {},
-	bShown					= false
+	bShown					= false,
+	bDebug					= false
 }
  
 -----------------------------------------------------------------------------------------------
@@ -63,10 +64,8 @@ local ktFilters = {
 	FILTER_COMBAT	= 8
 }
 
--- Set this to true to enable debug outputs
-local bDebug = true
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 1, 2
+local nVersion, nMinor, nTick = 1, 2, 0
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
@@ -138,12 +137,13 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterEventHandler("ChallengeActivate",			"OnChallengeActivate",				self)
 		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeAbandon",				self)
 		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeCompleted",				self)
+		
+		Apollo.RegisterEventHandler("ToggleZoneMap", 				"OnToggleZoneMap", 					self)
+		
+
         
 		
-		self.zoneMap = Apollo.GetAddon("ZoneMap")
-		self.eObjectTypeChallenge = self.zoneMap.eObjectTypeChallenge
 		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
-		self.timerMap = ApolloTimer.Create(0.5, true, "TimerZoneMap", self)
 		self.timerPos:Stop()
 		self.currentZoneId = -1
 		self.tCachedChallenges = {}
@@ -162,23 +162,14 @@ function OrionChallenges:OnDocLoaded()
 			self.tUserSettings = tDefaultSettings
 		end
 		
-		self.tInfo = self.zoneMap:GetDefaultUnitInfo()
-		--[[{
-			strIcon 		= "IconSprites:Icon_MapNode_Map_Generic_POI",
-			strIconEdge 	= "",
-			crObject 		= CColor.new(1, 1, 1, 1),
-			crEdge 			= CColor.new(1, 1, 1, 1),
-			bAboveOverlay 	= false
-		}]]--
-		
 		self:UpdateSettingControls()
 		
 		if self.tUserSettings.bShown and self.wndMain and not self.wndMain:IsShown() then
 			self:RestoreWindowPosition()
-			self:OnShow()
+			self:OnOrionChallengesToggle()
 		end
 			
-		Debug("Initialized")
+		self:Debug("Initialized")
 	end
 end
 
@@ -191,18 +182,9 @@ end
 -- Prints a string to the debug chat channel
 -- @param str The string to print
 ---------------------------------
-function Debug(str)
-	if bDebug then
+function OrionChallenges:Debug(str)
+	if self.tUserSettings and self.tUserSettings.bDebug then
 		Print("[OrionChallenges] " .. str)
-	end
-end
-
--- on SlashCommand "/oc"
-function OrionChallenges:OnOrionChallengesToggle()
-	if not self.wndMain:IsShown() then
-		self:OnShow()
-	else
-		self:OnClose()
 	end
 end
 
@@ -217,27 +199,66 @@ function OrionChallenges:RestoreWindowPosition()
 end
 
 ---------------------------------
--- Invoked when the main window is shown
+-- Zone Map interaction
 ---------------------------------
-function OrionChallenges:OnShow()
-	self.wndMain:Invoke()
-	self:LockUnlockWindow()
-	self.timerPos:Start()
-	self:PopulateItemList(true)
-	self:UpdateInterfaceMenuAlerts()
-	self.tUserSettings.bShown = true
+function OrionChallenges:OnToggleZoneMap(bNoRepeat)
+	local zoneMap = Apollo.GetAddon("ZoneMap")
+	self:Debug("OnToggleZoneMap")
+	if zoneMap ~= nil then
+		local wndZoneMap = zoneMap.wndZoneMap
+		if not zoneMap.wndMain:IsVisible() then
+			if self.eObjectTypeChallenge == nil then 
+				self.eObjectTypeChallenge = wndZoneMap:CreateOverlayType() 
+				self.zoneMapObjects = {}
+				
+				table.insert(zoneMap.arAllowedTypesScaled, self.eObjectTypeChallenge)
+				table.insert(zoneMap.arAllowedTypesPanning, self.eObjectTypeChallenge)
+				table.insert(zoneMap.arAllowedTypesSuperPanning, self.eObjectTypeChallenge)
+			end
+			local tInfo = {}
+			tInfo.strIcon 		= ksSpriteChallenge
+			tInfo.strIconEdge	= ""
+			tInfo.crObject 		= CColor.new(1, 1, 1, 1)
+			tInfo.crEdge 		= CColor.new(1, 1, 1, 1)
+			
+			self:Debug(self.eObjectTypeChallenge)
+			for k, challenge in pairs(self.tChallenges) do
+				self.zoneMapObjects[challenge:GetId()] = wndZoneMap:AddObject(self.eObjectTypeChallenge, challenge:GetMapLocation(), challenge:GetName(), tInfo, {bNeverShowOnEdge = true, bFixedSizeMedium = true})
+			end
+			
+			zoneMap:SetTypeVisibility(self.eObjectTypeChallenge, true)
+		else
+			self:Debug("no.")
+			if self.zoneMapObjects then
+				for k, v in pairs(self.zoneMapObjects) do
+					wndZoneMap:RemoveObject(v)
+					self.zoneMapObjects[k] = nil
+				end
+			end
+		end
+	end
 end
 
 ---------------------------------
--- Invoked when the main window is closed
+-- Invoked when the main window is shown
 ---------------------------------
-function OrionChallenges:OnClose()
-	self.wndMain:Show(false)
-	self.timerPos:Stop()
-	self:UpdateInterfaceMenuAlerts()
-	self:OnSettingsClose()
-	self.tUserSettings.tAnchor = {self.wndMain:GetAnchorOffsets()}
-	self.tUserSettings.bShown = false
+function OrionChallenges:OnOrionChallengesToggle()
+	self:Debug("OnOrionChallengesToggle")
+	local visible = self.wndMain:IsShown()
+	if not visible then
+		self:LockUnlockWindow()
+		self.timerPos:Start()
+		self:PopulateItemList()
+		self:ResizeHeight()
+		self.tUserSettings.bShown = true
+	else
+		self.timerPos:Stop()
+		self:OnSettingsClose()
+		self.tUserSettings.tAnchor = {self.wndMain:GetAnchorOffsets()}
+		self.tUserSettings.bShown = false
+	end
+
+	self.wndMain:Show(not visible)
 end
 
 ---------------------------------
@@ -245,27 +266,9 @@ end
 ---------------------------------
 function OrionChallenges:OnSubZoneChanged()
 	if self.currentZoneId ~= GameLib.GetCurrentZoneId() then
-		Debug("Zone changed. From " .. self.currentZoneId .. " to " .. GameLib.GetCurrentZoneId())
+		self:Debug("Zone changed. From " .. self.currentZoneId .. " to " .. GameLib.GetCurrentZoneId())
 		self.currentZoneId = GameLib.GetCurrentZoneId()
 		self:PopulateItemList(true)
-	end
-end
-
-function OrionChallenges:AddToZoneMap(challenge)
-	if self.zoneMap and self.zoneMap.AddObject then
-		local loc = challenge:GetMapLocation()
-		self.zoneMap:AddObject(self.eObjectTypeChallenge, loc, challenge:GetName())
-		--Debug("Add Object " .. challenge:GetName() .. " at pos "..loc.x..", "..loc.y..", "..loc.z..".")
-	end
-end
-
-function OrionChallenges:TimerZoneMap()
-	if self.zoneMap.wndZoneMap ~= nil then
-		self.zoneMap = self.zoneMap.wndZoneMap
-		self.timerMap:Stop()
-		for k, challenge in pairs(self.tChallenges) do
-			self:AddToZoneMap(challenge)
-		end
 	end
 end
 
@@ -301,7 +304,7 @@ function OrionChallenges:OnIgnoreChallengeToggle(wndHandler, wndControl)
 	if wndHandler ~= wndControl then return end
 	local data = wndControl:GetParent():GetData()
 	
-	Debug("OnIgnoreChallengeToggle")
+	self:Debug("OnIgnoreChallengeToggle")
 	if data ~= nil then
 		local challenge = data.challenge
 		if self:IsIgnored(challenge) then
@@ -369,11 +372,6 @@ end
 ---------------------------------
 function OrionChallenges:OnInterfaceMenuListHasLoaded()
 	Event_FireGenericEvent("InterfaceMenuList_NewAddOn", "OrionChallenges", {"OrionChallengesToggle", "", "Icon_Windows32_UI_CRB_InterfaceMenu_ChallengeLog"})
-	self:UpdateInterfaceMenuAlerts()
-end
-
-function OrionChallenges:UpdateInterfaceMenuAlerts()
-	Event_FireGenericEvent("InterfaceMenuList_AlertAddOn", "OrionChallenges", {self.isVisible, nil, 0})
 end
 
 ---------------------------------
@@ -398,12 +396,12 @@ end
 function OrionChallenges:OnChallengeActivate()
 	if self.tUserSettings.bHideWindowOnChallenge and self.wndMain:IsShown() then
 		self.bHiddenBySetting = true
-		self:OnClose()
+		self:OnOrionChallengesToggle()
 	end
 end
 
 function OrionChallenges:ShowWindowAfterChallenge()
---	Debug("ShowWindowAfterChallenge: " .. self.tUserSettings.bHideWindowOnChallenge and 1 or 0 .. "|" .. self.bHiddenBySetting and 1 or 0)
+--	self:Debug("ShowWindowAfterChallenge: " .. self.tUserSettings.bHideWindowOnChallenge and 1 or 0 .. "|" .. self.bHiddenBySetting and 1 or 0)
 	if self.tUserSettings.bHideWindowOnChallenge and self.bHiddenBySetting then
 		self.bHiddenBySetting = false
 		self:OnShow()
@@ -509,7 +507,7 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	for k, challenge in pairs(challenges) do
 		local nChallengeType = challenge:GetType()
 		if self:IsIgnored(challenge) then
-			Debug("Challenge " .. challenge:GetName() .. " is ignored. Display? " .. (self.tUserSettings.bShowIgnoredChallenges and "true" or "false"))
+			self:Debug("Challenge " .. challenge:GetName() .. " is ignored. Display? " .. (self.tUserSettings.bShowIgnoredChallenges and "true" or "false"))
 		end
 		if not (self.tUserSettings.bHideUnderground and self:GetChallengeDistance(challenge) == nil) 
 			and not ((nChallengeType == ChallengesLib.ChallengeType_General and self:HasFilter(ktFilters.FILTER_GENERAL))
@@ -635,7 +633,7 @@ end
 -- populate item list
 function OrionChallenges:PopulateItemList(bForce)
 	if not self.populating or bForce then
-		Debug("Populating.")
+		self:Debug("Populating.")
 		self.populating = true
 		-- make sure the item list is empty to start with
 		self:DestroyItemList()
@@ -645,7 +643,7 @@ function OrionChallenges:PopulateItemList(bForce)
 		for i = 1, self:GetMaxChallenges() do
 			local clg = challenges[i]
 			self:AddItem(i, clg)	
-			self:AddToZoneMap(clg)
+			--self:AddToZoneMap(clg)
 		end
 
 		-- now all the item are added, call ArrangeChildrenVert to list out the list items vertically
@@ -722,7 +720,7 @@ function OrionChallenges:RepositionSettingsFrame()
 	local nWidth, nHeight = self.wndSettings:GetWidth(), self.wndSettings:GetHeight()
 	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
 	local nsWidth, _ = Apollo.GetScreenSize()
-	Debug(nLeft ..";" .. nWidth .. ";" .. nsWidth)
+	self:Debug(nLeft ..";" .. nWidth .. ";" .. nsWidth)
 	if nLeft + nWidth > nsWidth - nWidth then
 		self.wndSettings:SetAnchorOffsets(nLeft - nWidth, nTop + 10, nLeft, nTop + 10 + nHeight)
 	else
@@ -753,7 +751,7 @@ function OrionChallenges:OnSave(eType)
     	return nil
   	end
 
-	Debug("OnSave")
+	self:Debug("OnSave")
 
 	return self.tUserSettings
 end
@@ -768,7 +766,7 @@ function OrionChallenges:OnRestore(eType, tSavedData)
     	return nil
   	end
 
-	Debug("OnRestore")
+	self:Debug("OnRestore")
 
 	self.tUserSettings = tSavedData
 	-- merge changes
@@ -801,7 +799,7 @@ function OrionChallenges:UpdateSettingControls()
 	local wndAutoloot			= self:GetSettingControl("Autoloot")
 	local wndIgnoredChallenges	= self:GetSettingControl("ShowIgnoredChallenges")
 	
-	Debug("Updating settings.")
+	self:Debug("Updating settings.")
 	wndMaxItems:SetText(self.tUserSettings.nMaxItems)
 	wndAutostart:SetCheck(self.tUserSettings.bAutostart)
 	wndHideOnChallenge:SetCheck(self.tUserSettings.bHideWindowOnChallenge)
@@ -831,7 +829,7 @@ end
 -- Invoked when the user toggles the hide underground challenges setting
 ---------------------------------
 function OrionChallenges:OnHideUndergroundChallengesToggle()
-	Debug("OnHideUndergroundChallengesToggle")
+	self:Debug("OnHideUndergroundChallengesToggle")
 	self.tUserSettings.bHideUnderground = self:GetSettingControl("HideUndergroundChallenges"):IsChecked()
 	self:OnSettingChanged()
 end
@@ -840,7 +838,7 @@ end
 -- Invoked when the user toggles the hide during challenge setting
 ---------------------------------
 function OrionChallenges:OnHideWindowOnChallengeToggle()
-	Debug("OnHideWindowOnChallengeToggle")
+	self:Debug("OnHideWindowOnChallengeToggle")
 	self.tUserSettings.bHideWindowOnChallenge = self:GetSettingControl("HideWindowOnChallenge"):IsChecked()
 	self:OnSettingChanged()
 end
@@ -849,7 +847,7 @@ end
 -- Invoked when the user toggles the lock window position setting
 ---------------------------------
 function OrionChallenges:OnLockWindowToggle()
-	Debug("OnLockWindowToggle")
+	self:Debug("OnLockWindowToggle")
 	self.tUserSettings.bLockWindow = self:GetSettingControl("LockWindow"):IsChecked()
 	self:LockUnlockWindow()
 	self:OnSettingChanged()
@@ -859,7 +857,7 @@ end
 -- Invoked when the user toggles the automatically show reward window setting
 ---------------------------------
 function OrionChallenges:OnAutolootToggle()
-	Debug("OnAutolootToggle")
+	self:Debug("OnAutolootToggle")
 	self.tUserSettings.bAutoloot = self:GetSettingControl("Autoloot"):IsChecked()
 	self:OnSettingChanged()
 end
@@ -868,7 +866,7 @@ end
 -- Invoked when the user toggles the autostart challenges setting
 ---------------------------------
 function OrionChallenges:OnAutostartToggle()
-	Debug("OnAutostartToggle")
+	self:Debug("OnAutostartToggle")
 	self.tUserSettings.bAutostart = self:GetSettingControl("Autostart"):IsChecked()
 	self:OnSettingChanged()
 end
@@ -877,7 +875,7 @@ end
 -- Invoked when the user toggles the show ignored challenges setting
 ---------------------------------
 function OrionChallenges:OnShowIgnoredChallengesToggle()
-	Debug("OnShowIgnoredChallengesToggle")
+	self:Debug("OnShowIgnoredChallengesToggle")
 	self.tUserSettings.bShowIgnoredChallenges = self:GetSettingControl("ShowIgnoredChallenges"):IsChecked()
 	self:OnSettingChanged()
 end
@@ -895,7 +893,7 @@ end
 -- Invoked when the user toggles any of the filter settings
 ---------------------------------
 function OrionChallenges:OnFilterToggle()
-	Debug("OnFilterToggle")
+	self:Debug("OnFilterToggle")
 	local nNewMask = 0
 	local tControls = { 
 		{ control = self:GetFilterControl("FilterGeneral"),	mask = ktFilters.FILTER_GENERAL }, 
@@ -911,7 +909,7 @@ function OrionChallenges:OnFilterToggle()
 		end
 	end
 	
-	Debug("New Mask: " .. nNewMask)
+	self:Debug("New Mask: " .. nNewMask)
 	
 	self.tUserSettings.nFilteredChallenges = nNewMask
 	self:OnSettingChanged()
