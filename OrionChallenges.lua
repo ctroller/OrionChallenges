@@ -66,7 +66,7 @@ local ktFilters = {
 }
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 3, 0
+local nVersion, nMinor, nTick = 1, 3, 1
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
@@ -196,7 +196,6 @@ end
 function OrionChallenges:RestoreWindowPosition()
 	if self.wndMain and self.tUserSettings.tAnchor ~= nil then
 		self.wndMain:SetAnchorOffsets(unpack(self.tUserSettings.tAnchor))
-		self:ResizeHeight()
 	end
 end
 
@@ -206,50 +205,43 @@ end
 
 function OrionChallenges:OnZoneMapInit()
 	self:Debug("OnZoneMapInit")
+	local zoneMap = Apollo.GetAddon("ZoneMap")
+	
+	-- only do this if we haven't initialized the overlay type (=wndZoneMap PRESENT)
 	if self.eObjectTypeChallenge == nil then
-		local zoneMap = Apollo.GetAddon("ZoneMap")
 		if zoneMap then
-			self.eObjectTypeChallenge = zoneMap.wndZoneMap:CreateOverlayType()
-			self.wndZoneMap = zoneMap.wndZoneMap
+			self.eObjectTypeChallenge = zoneMap.wndZoneMap:CreateOverlayType() -- create a new overlay type for filtering
+			self.wndZoneMap = zoneMap.wndZoneMap -- store the zone map copy
 			
+			-- now we need to add the new overlay type to the allowed zoom types of the zone map
 			table.insert(zoneMap.arAllowedTypesScaled, self.eObjectTypeChallenge)
 			table.insert(zoneMap.arAllowedTypesPanning, self.eObjectTypeChallenge)
 			table.insert(zoneMap.arAllowedTypesSuperPanning, self.eObjectTypeChallenge)
-			
-			zoneMap:SetTypeVisibility(self.eObjectTypeChallenge, true)
-			
-			self.bZoneMapForce = true
-			self:OnToggleZoneMap()
 		end
 	end
+	
+	-- and set it visible by default.
+	zoneMap:SetTypeVisibility(self.eObjectTypeChallenge, true)
+	self:AddChallengesToZoneMap()
 end
 
-function OrionChallenges:OnToggleZoneMap(bNoRepeat)
-	if self.wndZoneMap and self.tUserSettings.bShowChallengesOnMap then
-		self:Debug("OnToggleZoneMap")
-		if self.bZoneMapForce then
-			local tInfo = {
-				strIcon = ksSpriteChallenge,
-				strIconEdge = "",
-				crObject = CColor.new(1, 1, 1, 1),
-				crEdge = CColor.new(1, 1, 1, 1)
-			}
-	
-			for k, challenge in pairs(self.tChallenges) do
-				self.tZoneMapObjects[challenge:GetId()] = self.wndZoneMap:AddObject(self.eObjectTypeChallenge, challenge:GetMapLocation(), challenge:GetName(), tInfo, {bNeverShowOnEdge = true, bFixedSizeMedium = true})
-			end		
-			
-			self.bZoneMapForce = false
-		else
-			self:Debug("no.")
-			if self.tZoneMapObjects then
-				for k, v in pairs(self.tZoneMapObjects) do
-					self.wndZoneMap:RemoveObject(v)
-					self.tZoneMapObjects[k] = nil
+function OrionChallenges:AddChallengesToZoneMap()
+	if self.wndZoneMap and self.tUserSettings.bShowChallengesOnMap and self.eObjectTypeChallenge then
+		self:Debug("AddChallengesToZoneMap")
+		for k, challenge in pairs(self.tChallenges) do
+			if self.tZoneMapObjects[challenge:GetId()] == nil then
+				local loc = challenge:GetMapLocation()
+				if loc ~= nil then
+					local tInfo = {
+						strIcon = ksSpriteChallenge,
+						strIconEdge = "",
+						crObject = challenge:GetCompletionCount()>0 and  CColor.new(1, 1, 1, 1) or CColor.new(0.5, 0.5, 0.5, 1),				
+						crEdge = CColor.new(1, 1, 1, 1)
+					}
+					
+					self.tZoneMapObjects[challenge:GetId()] = self.wndZoneMap:AddObject(self.eObjectTypeChallenge, loc, "Challenge: "..challenge:GetName(), tInfo, {bNeverShowOnEdge = true, bFixedSizeMedium = true})
 				end
-			end
-			
-			self.bZoneMapForce = true
+			end		
 		end
 	end
 end
@@ -418,7 +410,7 @@ function OrionChallenges:ShowWindowAfterChallenge()
 --	self:Debug("ShowWindowAfterChallenge: " .. self.tUserSettings.bHideWindowOnChallenge and 1 or 0 .. "|" .. self.bHiddenBySetting and 1 or 0)
 	if self.tUserSettings.bHideWindowOnChallenge and self.bHiddenBySetting then
 		self.bHiddenBySetting = false
-		self:OnShow()
+		self:OnOrionChallengesToggle()
 	end
 end
 
@@ -623,7 +615,7 @@ function OrionChallenges:HandleButtonControl(index)
 		wndControl:SetBGColor(sBGColor)
 		wndControl:Show(bEnableCtrl)
 		
-		wndItemText:SetText(challenge:GetName())
+		wndItemText:SetText((self.tUserSettings.bDebug and "#"..challenge:GetId().." " or "")..challenge:GetName())
 		wndItemText:SetTextColor(kcrNormalText)
 		
 		self:UpdateDistance(index, challenge)
@@ -1000,7 +992,8 @@ function OrionChallenges:FindChildByPath(wndParent, sPath, sSeparator)
 	for k, v in pairs(tParts) do
 		local wnd = wndCurrent:FindChild(v)
 		if wnd == nil then
-			return nil
+			wndCurrent = nil
+			break
 		end
 		
 		wndCurrent = wnd
@@ -1009,20 +1002,7 @@ function OrionChallenges:FindChildByPath(wndParent, sPath, sSeparator)
 	return wndCurrent
 end
 
-function table.tostring( tbl )
-  local result, done = {}, {}
-  for k, v in ipairs( tbl ) do
-    table.insert( result, table.val_to_str( v ) )
-    done[ k ] = true
-  end
-  for k, v in pairs( tbl ) do
-    if not done[ k ] then
-      table.insert( result,
-        table.key_to_str( k ) .. "=" .. table.val_to_str( v ) )
-    end
-  end
-  return "{" .. table.concat( result, "," ) .. "}"
-end------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
 -- OrionChallenges Instance
 -----------------------------------------------------------------------------------------------
 local OrionChallengesInst = OrionChallenges:new()
