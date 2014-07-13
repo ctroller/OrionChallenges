@@ -72,7 +72,7 @@ for k, v in pairs(ktFilters) do
 end
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 4, 0
+local nVersion, nMinor, nTick = 1, 4, 1
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
@@ -126,7 +126,6 @@ function OrionChallenges:OnDocLoaded()
 		-- item list
 		self.wndItemList = self.wndMain:FindChild("ItemList")
 		self.wndMain:Show(false, true)
-		self:RestoreWindowPosition()
 
 		-- if the xmlDoc is no longer needed, you should set it to nil
 		-- self.xmlDoc = nil
@@ -172,6 +171,7 @@ function OrionChallenges:OnDocLoaded()
 		
 		self:InitializeSettingControls()
 		
+		self:RestoreWindowPosition()		
 		if self.tUserSettings.bShown and self.wndMain and not self.wndMain:IsShown() then
 			self:OnOrionChallengesToggle()
 		end
