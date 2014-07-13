@@ -28,18 +28,19 @@ local OrionChallenges = {}
 
 -- Default OrionChallenges settings
 local tDefaultSettings = {
-	nMaxItems				= 10,		-- maximum number of displayed challenges
-	nFilteredChallenges		= 0,		-- BITWISE representation of filtered challenges -> see ktFilters for filter masks
-	bLockWindow				= false,	-- lock window position
-	bAutostart				= false,	-- autostart challenges
-	bAutoloot				= false,	-- autoloot challenges
-	bHideWindowOnChallenge	= false,	-- hide frame when starting a challenge
-	bHideUnderground		= false,	-- hide underground challenges, or else display it with "?" distance
-	bShowIgnoredChallenges	= false,	-- show ignored challenges
-	tIgnoredChallenges		= {},
-	bShowChallengesOnMap	= true,		-- show challenges on zone map
-	bShown					= false,
-	bDebug					= false
+	nMaxItems					= 10,		-- maximum number of displayed challenges
+	nFilteredChallenges			= 0,		-- BITWISE representation of filtered challenges -> see ktFilters for filter masks
+	bLockWindow					= false,	-- lock window position
+	bAutostart					= false,	-- autostart challenges
+	bAutoloot					= false,	-- autoloot challenges
+	bHideWindowOnChallenge		= false,	-- hide frame when starting a challenge
+	bHideUnderground			= false,	-- hide underground challenges, or else display it with "?" distance
+	bShowIgnoredChallenges		= false,	-- show ignored challenges
+	tIgnoredChallenges			= {},
+	bShowChallengesOnMap		= true,		-- show challenges on zone map
+	bHideCompletedChallenges	= false,	-- hide completed challenges
+	bShown						= false,
+	bDebug						= false
 }
  
 -----------------------------------------------------------------------------------------------
@@ -66,7 +67,7 @@ local ktFilters = {
 }
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 3, 1
+local nVersion, nMinor, nTick = 1, 4, 0
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
@@ -120,6 +121,7 @@ function OrionChallenges:OnDocLoaded()
 		-- item list
 		self.wndItemList = self.wndMain:FindChild("ItemList")
 		self.wndMain:Show(false, true)
+		self:RestoreWindowPosition()
 
 		-- if the xmlDoc is no longer needed, you should set it to nil
 		-- self.xmlDoc = nil
@@ -166,7 +168,6 @@ function OrionChallenges:OnDocLoaded()
 		self:UpdateSettingControls()
 		
 		if self.tUserSettings.bShown and self.wndMain and not self.wndMain:IsShown() then
-			self:RestoreWindowPosition()
 			self:OnOrionChallengesToggle()
 		end
 			
@@ -257,12 +258,12 @@ function OrionChallenges:OnOrionChallengesToggle()
 	if not visible then
 		self:LockUnlockWindow()
 		self.timerPos:Start()
+		self:RestoreWindowPosition()
 		self:PopulateItemList()
 		self.tUserSettings.bShown = true
 	else
 		self.timerPos:Stop()
 		self:OnSettingsClose()
-		self.tUserSettings.tAnchor = {self.wndMain:GetAnchorOffsets()}
 		self.tUserSettings.bShown = false
 	end
 
@@ -394,7 +395,7 @@ end
 -- Enables window management support
 ---------------------------------
 function OrionChallenges:OnWindowManagementReady()
-    Event_FireGenericEvent("WindowManagementAdd", {wnd = self.wndMain, strName = "OrionChallenges"})
+    --Event_FireGenericEvent("WindowManagementAdd", {wnd = self.wndMain, strName = "OrionChallenges"})
 end
 
 
@@ -463,7 +464,7 @@ end
 function OrionChallenges:ResizeHeight()
 	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
 	self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nTop + 45 + (25 * self:GetMaxChallenges()))
-	
+
 	if self.wndSettings:IsShown() then
 		self:RepositionSettingsFrame()
 	end
@@ -523,6 +524,7 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 				or (nChallengeType == ChallengesLib.ChallengeType_Ability and self:HasFilter(ktFilters.FILTER_ABILITY))
 				or (nChallengeType == ChallengesLib.ChallengeType_Combat and self:HasFilter(ktFilters.FILTER_COMBAT)))
 			and not (not self.tUserSettings.bShowIgnoredChallenges and self:IsIgnored(challenge))
+			and not (self.tUserSettings.bHideCompletedChallenges and challenge:GetCompletionCount() > 0)
 		then
 			table.insert(filteredChallenges, challenge)
 		end
@@ -657,6 +659,7 @@ function OrionChallenges:PopulateItemList(bForce)
 		self:DestroyItemList()
 	
 		local challenges = self:GetChallengesByZoneSorted()
+		
 		self.tChallenges = challenges		
 		for i = 1, self:GetMaxChallenges() do
 			local clg = challenges[i]
@@ -665,8 +668,8 @@ function OrionChallenges:PopulateItemList(bForce)
 		end
 
 		-- now all the item are added, call ArrangeChildrenVert to list out the list items vertically
+		self:ResizeHeight() 
 		self.wndItemList:ArrangeChildrenVert()
-		self:ResizeHeight()
 		self.populating = false
 	end
 end
@@ -731,6 +734,10 @@ function OrionChallenges:HasFilter(nFilter)
 	return bit.band(self.tUserSettings.nFilteredChallenges, nFilter) == nFilter
 end
 
+function OrionChallenges:SaveAnchorPosition()
+	self.tUserSettings.tAnchor = {self.wndMain:GetAnchorOffsets()}
+end
+
 -----------------------------------------------------------------------------------------------
 -- Settings Frame
 -----------------------------------------------------------------------------------------------
@@ -770,7 +777,6 @@ function OrionChallenges:OnSave(eType)
   	end
 
 	self:Debug("OnSave")
-
 	return self.tUserSettings
 end
 
@@ -817,6 +823,7 @@ function OrionChallenges:UpdateSettingControls()
 	local wndAutoloot				= self:GetSettingControl("Autoloot")
 	local wndIgnoredChallenges		= self:GetSettingControl("ShowIgnoredChallenges")
 	local wndShowChallengesOnMap	= self:GetSettingControl("ShowChallengesOnMap")
+	local wndHideCompleted			= self:GetSettingControl("HideCompletedChallenges")
 	
 	self:Debug("Updating settings.")
 	wndMaxItems:SetText(self.tUserSettings.nMaxItems)
@@ -827,6 +834,7 @@ function OrionChallenges:UpdateSettingControls()
 	wndAutoloot:SetCheck(self.tUserSettings.bAutoloot)
 	wndIgnoredChallenges:SetCheck(self.tUserSettings.bShowIgnoredChallenges)
 	wndShowChallengesOnMap:SetCheck(self.tUserSettings.bShowChallengesOnMap)
+	wndHideCompleted:SetCheck(self.tUserSettings.bHideCompletedChallenges)
 	self:OnFilterToggle()
 	self:LockUnlockWindow()
 end
@@ -906,6 +914,15 @@ end
 function OrionChallenges:OnShowChallengesOnMapToggle()
 	self:Debug("OnShowChallengesOnMapToggle")
 	self.tUserSettings.bShowChallengesOnMap = self:GetSettingControl("ShowChallengesOnMap"):IsChecked()
+	self:OnSettingChanged()
+end
+
+---------------------------------
+-- Invoked when the user toggles the hide completed challenges setting
+---------------------------------
+function OrionChallenges:OnHideCompletedChallengesToggle()
+	self:Debug("OnHideCompletedChallengesToggle")
+	self.tUserSettings.bHideCompletedChallenges = self:GetSettingControl("HideCompletedChallenges"):IsChecked()
 	self:OnSettingChanged()
 end
 
