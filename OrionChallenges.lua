@@ -205,24 +205,26 @@ end
 
 function OrionChallenges:OnZoneMapInit()
 	self:Debug("OnZoneMapInit")
-	local zoneMap = Apollo.GetAddon("ZoneMap")
+	local zoneMap = self:GetZoneMap()
 	
-	-- only do this if we haven't initialized the overlay type (=wndZoneMap PRESENT)
-	if self.eObjectTypeChallenge == nil then
-		if zoneMap then
-			self.eObjectTypeChallenge = zoneMap.wndZoneMap:CreateOverlayType() -- create a new overlay type for filtering
-			self.wndZoneMap = zoneMap.wndZoneMap -- store the zone map copy
-			
-			-- now we need to add the new overlay type to the allowed zoom types of the zone map
-			table.insert(zoneMap.arAllowedTypesScaled, self.eObjectTypeChallenge)
-			table.insert(zoneMap.arAllowedTypesPanning, self.eObjectTypeChallenge)
-			table.insert(zoneMap.arAllowedTypesSuperPanning, self.eObjectTypeChallenge)
+	if zoneMap ~= nil then	
+		-- only do this if we haven't initialized the overlay type (=wndZoneMap PRESENT)
+		if self.eObjectTypeChallenge == nil then
+			if zoneMap then
+				self.eObjectTypeChallenge = zoneMap.wndZoneMap:CreateOverlayType() -- create a new overlay type for filtering
+				self.wndZoneMap = zoneMap.wndZoneMap -- store the zone map copy
+					
+				-- now we need to add the new overlay type to the allowed zoom types of the zone map
+				table.insert(zoneMap.arAllowedTypesScaled, self.eObjectTypeChallenge)
+				table.insert(zoneMap.arAllowedTypesPanning, self.eObjectTypeChallenge)
+				table.insert(zoneMap.arAllowedTypesSuperPanning, self.eObjectTypeChallenge)
+			end
 		end
+			
+		-- and set it visible by default.
+		zoneMap:SetTypeVisibility(self.eObjectTypeChallenge, true)
+		self:AddChallengesToZoneMap()
 	end
-	
-	-- and set it visible by default.
-	zoneMap:SetTypeVisibility(self.eObjectTypeChallenge, true)
-	self:AddChallengesToZoneMap()
 end
 
 function OrionChallenges:AddChallengesToZoneMap()
@@ -623,7 +625,6 @@ function OrionChallenges:HandleButtonControl(index)
 end
 -----------------------------------------------------------------------------------------------
 -- Helper functions
--- Taken from Carbine's ChallengeLog addon
 -----------------------------------------------------------------------------------------------
 function OrionChallenges:HelperIsInZone(tZoneRestrictionInfo)
 	return tZoneRestrictionInfo.idSubZone == 0 or GameLib.IsInWorldZone(tZoneRestrictionInfo.idSubZone)
@@ -631,6 +632,17 @@ end
 
 function OrionChallenges:IsStartable(clgCurrent)
     return clgCurrent:GetCompletionCount() < clgCurrent:GetCompletionTotal() or clgCurrent:GetCompletionTotal() == -1
+end
+
+function OrionChallenges:GetZoneMap()
+	--								Carbine		jjflanigan
+	local tOrderedZoneMapAddons = { "ZoneMap", "GuardZoneMap" }
+	for k, v in pairs(tOrderedZoneMapAddons) do
+		local zoneMap = Apollo.GetAddon(v)
+		if zoneMap ~= nil then
+			return zoneMap
+		end
+	end
 end
 
 -----------------------------------------------------------------------------------------------
@@ -1007,3 +1019,4 @@ end
 -----------------------------------------------------------------------------------------------
 local OrionChallengesInst = OrionChallenges:new()
 OrionChallengesInst:Init()
+
