@@ -66,6 +66,11 @@ local ktFilters = {
 	FILTER_COMBAT	= 8
 }
 
+local ktFilterTotal = 0
+for k, v in pairs(ktFilters) do
+	ktFilterTotal = ktFilterTotal + v
+end
+
 -- Addon Version
 local nVersion, nMinor, nTick = 1, 4, 0
 local sAuthor = "Troxito@EU-Progenitor"
@@ -165,7 +170,7 @@ function OrionChallenges:OnDocLoaded()
 			self.tUserSettings = tDefaultSettings
 		end
 		
-		self:UpdateSettingControls()
+		self:InitializeSettingControls()
 		
 		if self.tUserSettings.bShown and self.wndMain and not self.wndMain:IsShown() then
 			self:OnOrionChallengesToggle()
@@ -731,7 +736,8 @@ end
 	return ( x1 & mask ) == mask
 ]]--
 function OrionChallenges:HasFilter(nFilter)
-	return bit.band(self.tUserSettings.nFilteredChallenges, nFilter) == nFilter
+	return bit.bxor(ktFilterTotal, self.tUserSettings.nFilteredChallenges) == nFilter
+--	return bit.band(self.tUserSettings.nFilteredChallenges, nFilter) == nFilter
 end
 
 function OrionChallenges:SaveAnchorPosition()
@@ -813,7 +819,7 @@ end
 ---------------------------------
 -- Updates and sets the settings form elements to its corresponding values
 ---------------------------------
-function OrionChallenges:UpdateSettingControls()
+function OrionChallenges:InitializeSettingControls()
 	local wnd = self.wndSettings
 	local wndMaxItems				= self:GetSettingControl("MaxItems")
 	local wndAutostart				= self:GetSettingControl("Autostart")
@@ -835,7 +841,16 @@ function OrionChallenges:UpdateSettingControls()
 	wndIgnoredChallenges:SetCheck(self.tUserSettings.bShowIgnoredChallenges)
 	wndShowChallengesOnMap:SetCheck(self.tUserSettings.bShowChallengesOnMap)
 	wndHideCompleted:SetCheck(self.tUserSettings.bHideCompletedChallenges)
-	self:OnFilterToggle()
+	
+	self.tFilterControls = { 
+		{ control = self:GetFilterControl("FilterGeneral"),	mask = ktFilters.FILTER_GENERAL }, 
+		{ control = self:GetFilterControl("FilterItem"),	mask = ktFilters.FILTER_ITEM }, 
+		{ control = self:GetFilterControl("FilterAbility"),	mask = ktFilters.FILTER_ABILITY },
+		{ control = self:GetFilterControl("FilterCombat"),	mask = ktFilters.FILTER_COMBAT }
+	}
+	
+	self:InitializeFilterControls()
+	--self:OnFilterToggle()
 	self:LockUnlockWindow()
 end
 
@@ -940,18 +955,11 @@ end
 ---------------------------------
 function OrionChallenges:OnFilterToggle()
 	self:Debug("OnFilterToggle")
-	local nNewMask = 0
-	local tControls = { 
-		{ control = self:GetFilterControl("FilterGeneral"),	mask = ktFilters.FILTER_GENERAL }, 
-		{ control = self:GetFilterControl("FilterItem"),	mask = ktFilters.FILTER_ITEM }, 
-		{ control = self:GetFilterControl("FilterAbility"),	mask = ktFilters.FILTER_ABILITY },
-		{ control = self:GetFilterControl("FilterCombat"),	mask = ktFilters.FILTER_COMBAT }
-	}
+	local nNewMask = ktFilterTotal
 	
-	for i=1, #tControls do
-		local obj = tControls[i]
-		if obj.control:IsChecked() then
-			nNewMask = nNewMask + obj.mask
+	for k, obj in pairs(self.tFilterControls) do
+		if not obj.control:IsChecked() then
+			nNewMask = nNewMask - obj.mask
 		end
 	end
 	
@@ -959,6 +967,12 @@ function OrionChallenges:OnFilterToggle()
 	
 	self.tUserSettings.nFilteredChallenges = nNewMask
 	self:OnSettingChanged()
+end
+
+function OrionChallenges:InitializeFilterControls()	
+	for k, obj in pairs(self.tFilterControls) do
+		obj.control:SetCheck(not self:HasFilter(obj.mask))
+	end
 end
 
 ---------------------------------
@@ -1018,6 +1032,7 @@ function OrionChallenges:FindChildByPath(wndParent, sPath, sSeparator)
 	sSeparator = sSeparator or "/"
 	local tParts = sPath:split(sSeparator)
 	local wndCurrent = wndParent
+	if wndCurrent == nil then return nil end
 	for k, v in pairs(tParts) do
 		local wnd = wndCurrent:FindChild(v)
 		if wnd == nil then
