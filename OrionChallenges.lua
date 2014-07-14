@@ -70,9 +70,10 @@ local ktFilterTotal = 0
 for k, v in pairs(ktFilters) do
 	ktFilterTotal = ktFilterTotal + v
 end
+tDefaultSettings.nFilteredChallenges = ktFilterTotal
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 4, 1
+local nVersion, nMinor, nTick = 1, 4, 2
 local sAuthor = "Troxito@EU-Progenitor"
 
 local bInitializing = false
@@ -250,6 +251,14 @@ function OrionChallenges:AddChallengesToZoneMap()
 					self.tZoneMapObjects[challenge:GetId()] = self.wndZoneMap:AddObject(self.eObjectTypeChallenge, loc, "Challenge: "..challenge:GetName(), tInfo, {bNeverShowOnEdge = true, bFixedSizeMedium = true})
 				end
 			end		
+		end
+	end
+end
+
+function OrionChallenges:RemoveChallengesFromZoneMap()
+	if self.tZoneMapObjects and self.wndZoneMap then
+		for k, v in pairs(self.tZoneMapObjects) do
+			self.wndZoneMap:RemoveObject(v)
 		end
 	end
 end
@@ -783,6 +792,7 @@ function OrionChallenges:OnSave(eType)
   	end
 
 	self:Debug("OnSave")
+	self:SaveAnchorPosition()
 	return self.tUserSettings
 end
 
@@ -929,6 +939,9 @@ end
 function OrionChallenges:OnShowChallengesOnMapToggle()
 	self:Debug("OnShowChallengesOnMapToggle")
 	self.tUserSettings.bShowChallengesOnMap = self:GetSettingControl("ShowChallengesOnMap"):IsChecked()
+	if not self.tUserSettings.bShowChallengesOnMap then
+		self:RemoveChallengesFromZoneMap()
+	end
 	self:OnSettingChanged()
 end
 
