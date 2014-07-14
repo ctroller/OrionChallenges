@@ -259,6 +259,7 @@ function OrionChallenges:RemoveChallengesFromZoneMap()
 	if self.tZoneMapObjects and self.wndZoneMap then
 		for k, v in pairs(self.tZoneMapObjects) do
 			self.wndZoneMap:RemoveObject(v)
+			self.tZoneMapObjects[k] = nil
 		end
 	end
 end
