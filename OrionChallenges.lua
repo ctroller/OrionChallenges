@@ -941,6 +941,8 @@ function OrionChallenges:OnShowChallengesOnMapToggle()
 	self.tUserSettings.bShowChallengesOnMap = self:GetSettingControl("ShowChallengesOnMap"):IsChecked()
 	if not self.tUserSettings.bShowChallengesOnMap then
 		self:RemoveChallengesFromZoneMap()
+	else
+		self:AddChallengesToZoneMap()
 	end
 	self:OnSettingChanged()
 end
