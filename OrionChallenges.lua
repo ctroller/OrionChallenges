@@ -76,7 +76,7 @@ tDefaultSettings.nFilteredChallenges = ktFilterTotal
 local nVersion, nMinor, nTick = 1, 4, 2
 local sAuthor = "Troxito@EU-Progenitor"
 
-local bInitializing = false
+local nAutostartProximity = 5
  
 -----------------------------------------------------------------------------------------------
 -- Initialization
@@ -143,13 +143,13 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterEventHandler("WindowManagementReady",		"OnWindowManagementReady",			self)
         
 		Apollo.RegisterEventHandler("ChallengeActivate",			"OnChallengeActivate",				self)
-		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeAbandon",				self)
-		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeCompleted",				self)
+		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeFinished",				self)
+		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeFinished",				self)
 		
 		Apollo.RegisterEventHandler("ToggleZoneMap", 				"OnToggleZoneMap", 					self)
 		Apollo.RegisterEventHandler("GenericEvent_ZoneMap_ZoneChanged", "OnZoneMapInit", self)
 		
-		self.timerPos = ApolloTimer.Create(0.5, true, "TimerUpdateDistance", self)
+		self.timerPos = ApolloTimer.Create(0.5, true, "OnTimerUpdateDistance", self)
 		self.timerPos:Stop()
 		self.currentZoneId = -1
 		self.tCachedChallenges = {}
@@ -196,20 +196,11 @@ function OrionChallenges:Debug(str)
 	end
 end
 
------------------------------------------------------------------------------------------------
--- Hook Functions
------------------------------------------------------------------------------------------------
-
-function OrionChallenges:RestoreWindowPosition()
-	if self.wndMain and self.tUserSettings.tAnchor ~= nil then
-		self.wndMain:SetAnchorOffsets(unpack(self.tUserSettings.tAnchor))
-	end
-end
-
 ---------------------------------
 -- Zone Map interaction
+-- Initializes all necessary variables for adding challenge icons to the zone map
+-- Also adds a new Zone Map Overlay type and inserts it to the necessary ZoneMap tables
 ---------------------------------
-
 function OrionChallenges:OnZoneMapInit()
 	self:Debug("OnZoneMapInit")
 	local zoneMap = self:GetZoneMap()
@@ -234,13 +225,22 @@ function OrionChallenges:OnZoneMapInit()
 	end
 end
 
+---------------------------------
+-- Adds all current Challenges to the Zone Map if not present already
+---------------------------------
 function OrionChallenges:AddChallengesToZoneMap()
+	-- make sure we have a valid zoneMap and are allowed to add them to the map
 	if self.wndZoneMap and self.tUserSettings.bShowChallengesOnMap and self.eObjectTypeChallenge then
 		self:Debug("AddChallengesToZoneMap")
+		
+		-- iterate current challenges
 		for k, challenge in pairs(self.tChallenges) do
+			-- only add if not added yet
 			if self.tZoneMapObjects[challenge:GetId()] == nil then
 				local loc = challenge:GetMapLocation()
+				-- we need a valid location, so underground challenges won't be added
 				if loc ~= nil then
+					-- default settings for the icon. Make the icon slightly faded if the user hasn't completed it yet
 					local tInfo = {
 						strIcon = ksSpriteChallenge,
 						strIconEdge = "",
@@ -248,6 +248,7 @@ function OrionChallenges:AddChallengesToZoneMap()
 						crEdge = CColor.new(1, 1, 1, 1)
 					}
 					
+					-- finally add the icon to the zone map and store the reference id
 					self.tZoneMapObjects[challenge:GetId()] = self.wndZoneMap:AddObject(self.eObjectTypeChallenge, loc, "Challenge: "..challenge:GetName(), tInfo, {bNeverShowOnEdge = true, bFixedSizeMedium = true})
 				end
 			end		
@@ -255,6 +256,9 @@ function OrionChallenges:AddChallengesToZoneMap()
 	end
 end
 
+---------------------------------
+-- Removes all current Challenges from the Zone Map
+---------------------------------
 function OrionChallenges:RemoveChallengesFromZoneMap()
 	if self.tZoneMapObjects and self.wndZoneMap then
 		for k, v in pairs(self.tZoneMapObjects) do
@@ -263,6 +267,19 @@ function OrionChallenges:RemoveChallengesFromZoneMap()
 		end
 	end
 end
+
+---------------------------------
+-- Restores the main window anchor offsets to the stored ones
+---------------------------------
+function OrionChallenges:RestoreWindowPosition()
+	if self.wndMain and self.tUserSettings.tAnchor ~= nil then
+		self.wndMain:SetAnchorOffsets(unpack(self.tUserSettings.tAnchor))
+	end
+end
+
+-----------------------------------------------------------------------------------------------
+-- Hook Functions
+-----------------------------------------------------------------------------------------------
 
 ---------------------------------
 -- Invoked when the main window is shown
@@ -300,14 +317,18 @@ end
 -- Invoked every 0.5s
 -- Handles distance and button updates for every currently active challenge
 ---------------------------------
-function OrionChallenges:TimerUpdateDistance()
+function OrionChallenges:OnTimerUpdateDistance()
+	-- check if we have a player object
 	if GameLib.GetPlayerUnit() then
+	
+		-- set current player position
 		self.curPosition = GameLib.GetPlayerUnit():GetPosition()
 		if self.curPosition == nil then return end
 		if self.lastPosition == nil then
 			self.lastPosition = self.curPosition
 		end
 		
+		-- check if we moved since the last call
 		local moving = true
 		if  math.abs(self.lastPosition.x - self.curPosition.x) < 0.01 and 
 			math.abs(self.lastPosition.y - self.curPosition.y) < 0.01 and 
@@ -324,9 +345,12 @@ function OrionChallenges:TimerUpdateDistance()
 	end
 end
 
+---------------------------------
+-- Invoked when a challenge is set to un-/ignored
+---------------------------------
 function OrionChallenges:OnIgnoreChallengeToggle(wndHandler, wndControl)
-	if wndHandler ~= wndControl then return end
-	local data = wndControl:GetParent():GetData()
+	if wndHandler ~= wndControl then return end -- check if we got a valid window
+	local data = wndControl:GetParent():GetData() -- load the data from our parent
 	
 	self:Debug("OnIgnoreChallengeToggle")
 	if data ~= nil then
@@ -337,6 +361,7 @@ function OrionChallenges:OnIgnoreChallengeToggle(wndHandler, wndControl)
 			self:IgnoreChallenge(challenge, true)
 		end
 		
+		-- update main window with the changes
 		self:PopulateItemList()
 		self:HandleButtonControl(data.index)
 	end
@@ -347,9 +372,7 @@ end
 ---------------------------------
 function OrionChallenges:OnListItemSelected(wndHandler, wndControl)
     -- make sure the wndControl is valid
-    if wndHandler ~= wndControl then
-        return
-    end
+    if wndHandler ~= wndControl then return end
     
     -- change the old item's text color back to normal color
     local wndItemText
@@ -364,7 +387,7 @@ function OrionChallenges:OnListItemSelected(wndHandler, wndControl)
     wndItemText:SetTextColor(kcrSelectedText)
 
 	local data = wndControl:GetData()
-	ChallengesLib.ShowHintArrow(data.challenge:GetId())
+	ChallengesLib.ShowHintArrow(data.challenge:GetId()) -- show a hint arrow to the selected challenge
 end
 
 
@@ -372,27 +395,27 @@ end
 -- Invoked when the challenge control button is clicked
 ---------------------------------
 function OrionChallenges:OnChallengeControlClicked(wndHandler, wndControl)
-	if wndHandler ~= wndControl then
-        return
-    end
+	if wndHandler ~= wndControl then return end
 	local data = wndControl:GetParent():GetData()
+	
 	if data ~= nil then
 		local challenge = data.challenge
-		if challenge:ShouldCollectReward() then
+		if challenge:ShouldCollectReward() then -- if the challenge is ready to loot: show the reward window
 			Event_FireGenericEvent("ChallengeRewardShow", challenge:GetId())
-		elseif challenge:IsActivated() then
+		elseif challenge:IsActivated() then -- if the challenge is currently active: abandon the challenge
 			ChallengesLib.AbandonChallenge(challenge:GetId())
-		else
+		else -- or else start the challenge
 			ChallengesLib.ShowHintArrow(challenge:GetId())
 			ChallengesLib.ActivateChallenge(challenge:GetId())
 		end
 		
-		self:HandleButtonControl(data.index)
+		self:HandleButtonControl(data.index) -- update the buttons
 	end
 end
 
 ---------------------------------
 -- Invoked when the interface menu list has loaded
+-- This makes it possible to add a entry to the Interface Menu List by Carbine in the bottom left of the User Interface
 ---------------------------------
 function OrionChallenges:OnInterfaceMenuListHasLoaded()
 	Event_FireGenericEvent("InterfaceMenuList_NewAddOn", "OrionChallenges", {"OrionChallengesToggle", "", "Icon_Windows32_UI_CRB_InterfaceMenu_ChallengeLog"})
@@ -402,20 +425,17 @@ end
 -- Invoked when the currently displayed challenge order has changed
 ---------------------------------
 function OrionChallenges:OnOrionChallengesOrderChanged()
-	self.tChallenges = self:GetChallengesByZoneSorted()
-	self:PopulateItemList()
-end
-
----------------------------------
--- Enables window management support
----------------------------------
-function OrionChallenges:OnWindowManagementReady()
-    --Event_FireGenericEvent("WindowManagementAdd", {wnd = self.wndMain, strName = "OrionChallenges"})
+	self.tChallenges = self:GetChallengesByZoneSorted() -- update our current challenges with the new ones
+	self:PopulateItemList() -- and update the main window
 end
 
 
----------------------------------
+-----------------------------------------------------------------------------------------------
 -- Challenge Hooks
+-----------------------------------------------------------------------------------------------
+---------------------------------
+-- Invoked when a challenge is activated
+-- Hides the Main Window if the user has the hide window on challenge setting activated
 ---------------------------------
 function OrionChallenges:OnChallengeActivate()
 	if self.tUserSettings.bHideWindowOnChallenge and self.wndMain:IsShown() then
@@ -424,38 +444,43 @@ function OrionChallenges:OnChallengeActivate()
 	end
 end
 
+---------------------------------
+-- Shows the Main Window after a challenge is abandoned or completed if the user has the hide window on challenge setting activated
+---------------------------------
 function OrionChallenges:ShowWindowAfterChallenge()
---	self:Debug("ShowWindowAfterChallenge: " .. self.tUserSettings.bHideWindowOnChallenge and 1 or 0 .. "|" .. self.bHiddenBySetting and 1 or 0)
 	if self.tUserSettings.bHideWindowOnChallenge and self.bHiddenBySetting then
 		self.bHiddenBySetting = false
 		self:OnOrionChallengesToggle()
 	end
 end
 
+---------------------------------
+-- Returns a Challenge object by the given challenge id
+-- @param nChallengeId the challenge id
+-- @return A challenge object representing the given challenge id
+---------------------------------
 function OrionChallenges:GetChallengeById(nChallengeId)
-	if self.tChallengesById[nChallengeId] ~= nil then
+	if self.tChallengesById[nChallengeId] ~= nil then -- get the object from the local challenge cache
 		return self.tChallengesById[nChallengeId]
 	end
 	
-	for i, challenge in pairs(ChallengesLib.GetActiveChallengeList()) do
-		if i == nChallengeId then
+	for k, challenge in pairs(ChallengesLib.GetActiveChallengeList()) do -- iterate over all challenges
+		if k == nChallengeId then
 			self.tChallengesById[nChallengeId] = challenge
 			return challenge
 		end
 	end
 end
 
-function OrionChallenges:OnChallengeAbandon(nChallengeId)
+---------------------------------
+-- Invoked when a challenge is finished (=completed/abandoned)
+-- Shows the reward window if the user has at least achieved a bronze reward and has the corresponding setting activated
+-- @param nChallengeId The abandoned challenge id
+---------------------------------
+function OrionChallenges:OnChallengeFinished(nChallengeId)
 	self:ShowWindowAfterChallenge()
 	local challenge = self:GetChallengeById(nChallengeId)
-	if self.tUserSettings.bAutoloot and challenge:ShouldCollectReward() then
-		Event_FireGenericEvent("ChallengeRewardShow", nChallengeId)
-	end
-end
-
-function OrionChallenges:OnChallengeCompleted(nChallengeId)
-	self:ShowWindowAfterChallenge()
-	if self.tUserSettings.bAutoloot then
+	if self.tUserSettings.bAutoloot and challenge:ShouldCollectReward() then -- only show if we can collect a reward
 		Event_FireGenericEvent("ChallengeRewardShow", nChallengeId)
 	end
 end
@@ -503,18 +528,19 @@ end
 function OrionChallenges:GetChallengesByZone(nZoneId)
 	nZoneId = nZoneId and nZoneId or GameLib.GetCurrentZoneId()
 	
-	if self.tCachedChallenges[nZoneId] ~= nil then
+	if self.tCachedChallenges[nZoneId] ~= nil then -- get the challenge from the cache if possible
 		return self.tCachedChallenges[nZoneId]
 	end
 	
 	local returnValue = {}
 	
 	for i, challenge in pairs(ChallengesLib.GetActiveChallengeList()) do
-		if GameLib.IsZoneInZone(GameLib.GetCurrentZoneId(), challenge:GetZoneInfo().idZone) then
+		if GameLib.IsZoneInZone(GameLib.GetCurrentZoneId(), challenge:GetZoneInfo().idZone) then -- if the challenge is in the current zone add it to our return value
 			table.insert(returnValue, challenge)
 		end
 	end
 	
+	self.tCachedChallenges[nZoneId] = returnValue -- store in our cache
 	return returnValue
 end
 
@@ -533,18 +559,21 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 		if self:IsIgnored(challenge) then
 			self:Debug("Challenge " .. challenge:GetName() .. " is ignored. Display? " .. (self.tUserSettings.bShowIgnoredChallenges and "true" or "false"))
 		end
-		if not (self.tUserSettings.bHideUnderground and self:GetChallengeDistance(challenge) == nil) 
-			and not ((nChallengeType == ChallengesLib.ChallengeType_General and self:HasFilter(ktFilters.FILTER_GENERAL))
-				or (nChallengeType == ChallengesLib.ChallengeType_Item and self:HasFilter(ktFilters.FILTER_ITEM))
-				or (nChallengeType == ChallengesLib.ChallengeType_Ability and self:HasFilter(ktFilters.FILTER_ABILITY))
-				or (nChallengeType == ChallengesLib.ChallengeType_Combat and self:HasFilter(ktFilters.FILTER_COMBAT)))
-			and not (not self.tUserSettings.bShowIgnoredChallenges and self:IsIgnored(challenge))
-			and not (self.tUserSettings.bHideCompletedChallenges and challenge:GetCompletionCount() > 0)
+		
+		if not (self.tUserSettings.bHideUnderground and self:GetChallengeDistance(challenge) == nil) -- should we hide underground challenges?
+			and not ((nChallengeType == ChallengesLib.ChallengeType_General and self:HasFilter(ktFilters.FILTER_GENERAL)) -- should we hide General challenges?
+				or (nChallengeType == ChallengesLib.ChallengeType_Item and self:HasFilter(ktFilters.FILTER_ITEM)) -- should we hide Item challenges?
+				or (nChallengeType == ChallengesLib.ChallengeType_Ability and self:HasFilter(ktFilters.FILTER_ABILITY)) -- should we hide Ability challenges?
+				or (nChallengeType == ChallengesLib.ChallengeType_Combat and self:HasFilter(ktFilters.FILTER_COMBAT))) -- should we hide Combat challenges?
+			and not (not self.tUserSettings.bShowIgnoredChallenges and self:IsIgnored(challenge)) -- Is the challenge ignored by the user?
+			and not (self.tUserSettings.bHideCompletedChallenges and challenge:GetCompletionCount() > 0) -- Should we hide completed challenges?
 		then
 			table.insert(filteredChallenges, challenge)
 		end
 	end
 	
+	-- sort our challenges
+	-- first by distance, second by name
 	table.sort(filteredChallenges, function(challenge1, challenge2) 
 		local dist1 = self:GetChallengeDistance(challenge1)
 		local dist2 = self:GetChallengeDistance(challenge2)
@@ -557,12 +586,22 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	return filteredChallenges
 end
 
+---------------------------------
+-- Set the ignored status of a challenge
+-- @param challenge the challenge object to be ignored
+-- @param bIgnore true = ignored, false = unignored
+---------------------------------
 function OrionChallenges:IgnoreChallenge(challenge, bIgnore)
 	local id = challenge:GetId()
-	bIgnore = (bIgnore == nil and true or bIgnore)
-	self.tUserSettings.tIgnoredChallenges[id] = bIgnore and bIgnore or nil
+	bIgnore = (bIgnore == nil and true or bIgnore) -- set bIgnore to true by default
+	self.tUserSettings.tIgnoredChallenges[id] = bIgnore and bIgnore or nil -- set to nil if being unignored
 end
 
+---------------------------------
+-- Returns TRUE if a challenge is being ignored, FALSE otherwise
+-- @param challenge the challenge object to check against
+-- @param TRUE if the challenge is being ignored, FALSE otherwise
+---------------------------------
 function OrionChallenges:IsIgnored(challenge)
 	return self.tUserSettings.tIgnoredChallenges[challenge:GetId()] == true
 end
@@ -573,7 +612,7 @@ end
 -- @return Float representation of the distance in meters
 ---------------------------------
 function OrionChallenges:GetChallengeDistance(challenge)
-	if challenge ~= nil and challenge:GetMapLocation() ~= nil then
+	if challenge ~= nil and challenge:GetMapLocation() ~= nil then -- we need a valid challenge and map location
 		local target = challenge:GetMapLocation()
 		if GameLib.GetPlayerUnit() then
 			local player = GameLib.GetPlayerUnit():GetPosition()
@@ -651,9 +690,13 @@ function OrionChallenges:IsStartable(clgCurrent)
     return clgCurrent:GetCompletionCount() < clgCurrent:GetCompletionTotal() or clgCurrent:GetCompletionTotal() == -1
 end
 
+---------------------------------
+-- Returns an object representing the zone map (IF COMPATIBLE)
+-- @return an object representing the zone map
+---------------------------------
 function OrionChallenges:GetZoneMap()
 	--								Carbine		jjflanigan
-	local tOrderedZoneMapAddons = { "ZoneMap", "GuardZoneMap" }
+	local tOrderedZoneMapAddons = { "ZoneMap", "GuardZoneMap" } -- currently supported zone map addons
 	for k, v in pairs(tOrderedZoneMapAddons) do
 		local zoneMap = Apollo.GetAddon(v)
 		if zoneMap ~= nil then
@@ -665,7 +708,10 @@ end
 -----------------------------------------------------------------------------------------------
 -- ItemList Functions
 -----------------------------------------------------------------------------------------------
--- populate item list
+---------------------------------
+-- Fills the main window with our challenges
+-- @param bForce Boolean flag if we should populate the list even if it's being populated already
+---------------------------------
 function OrionChallenges:PopulateItemList(bForce)
 	if not self.populating or bForce then
 		self:Debug("Populating.")
@@ -674,12 +720,10 @@ function OrionChallenges:PopulateItemList(bForce)
 		self:DestroyItemList()
 	
 		local challenges = self:GetChallengesByZoneSorted()
-		
-		self.tChallenges = challenges		
+		self.tChallenges = challenges -- update the current challenges
 		for i = 1, self:GetMaxChallenges() do
 			local clg = challenges[i]
-			self:AddItem(i, clg)	
-			--self:AddToZoneMap(clg)
+			self:AddItem(i, clg)
 		end
 
 		-- now all the item are added, call ArrangeChildrenVert to list out the list items vertically
@@ -689,7 +733,8 @@ function OrionChallenges:PopulateItemList(bForce)
 	end
 end
 
--- clear the item list
+---------------------------------
+-- Removes all challenges from the main window---------------------------------
 function OrionChallenges:DestroyItemList()
 	-- destroy all the wnd inside the list
 	for idx,wnd in ipairs(self.tItems) do
@@ -701,11 +746,15 @@ function OrionChallenges:DestroyItemList()
 	self.wndSelectedListItem = nil
 end
 
--- add an item into the item list
+---------------------------------
+-- Adds a new challenge object to the main window
+-- @param index The current count of challenges being added
+-- @param challenge The challenge object
+---------------------------------
 function OrionChallenges:AddItem(index, challenge)
 	local wnd = Apollo.LoadForm(self.xmlDoc, "ListItem", self.wndItemList, self)
 	self.tItems[index] = wnd
-	wnd:SetData({index = index, challenge = challenge})
+	wnd:SetData({index = index, challenge = challenge}) -- store our data inside the window
 	self:HandleButtonControl(index)
 	wnd:SetTooltip(challenge:GetDescription())
 end
@@ -719,10 +768,10 @@ function OrionChallenges:UpdateDistance(index, challenge)
 	local wnd = self.tItems[index]
 	if wnd then
 		local wndDistance = wnd:FindChild("Distance")
-		if challenge and challenge:GetMapLocation() ~= nil then
+		if challenge and challenge:GetMapLocation() ~= nil then -- we need a valid location
 			local distance = self:GetChallengeDistance(challenge)
 			wndDistance:SetText(math.floor(distance).."m")
-			if self.tUserSettings.bAutostart and math.floor(distance) <= 5 and not challenge:IsActivated() then
+			if self.tUserSettings.bAutostart and math.floor(distance) <= nAutostartProximity and not challenge:IsActivated() then
 				ChallengesLib.ActivateChallenge(challenge:GetId())
 			end
 		else
