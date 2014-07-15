@@ -40,7 +40,8 @@ local tDefaultSettings = {
 	bShowChallengesOnMap		= true,		-- show challenges on zone map
 	bHideCompletedChallenges	= false,	-- hide completed challenges
 	bShown						= false,
-	bDebug						= false
+	bDebug						= false,
+	bAutoAbandonChallenges		= false
 }
  
 -----------------------------------------------------------------------------------------------
@@ -66,14 +67,14 @@ local ktFilters = {
 	FILTER_COMBAT	= 8
 }
 
-local ktFilterTotal = 0
+local knFilterTotal = 0
 for k, v in pairs(ktFilters) do
-	ktFilterTotal = ktFilterTotal + v
+	knFilterTotal = knFilterTotal + v
 end
-tDefaultSettings.nFilteredChallenges = ktFilterTotal
+tDefaultSettings.nFilteredChallenges = knFilterTotal
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 4, 3
+local nVersion, nMinor, nTick = 1, 5, 0
 local sAuthor = "Troxito@EU-Progenitor"
 
 local nAutostartProximity = 5
@@ -157,6 +158,7 @@ function OrionChallenges:OnDocLoaded()
 		self.populating = false
 		self.bHiddenBySetting = false
 		self.tChallengesById = {}
+		self.nSelectedChallengeId = -1
 		
 		self.tZoneMapObjects = {}
 		
@@ -400,13 +402,15 @@ function OrionChallenges:OnChallengeControlClicked(wndHandler, wndControl)
 	
 	if data ~= nil then
 		local challenge = data.challenge
+		local id = challenge:GetId()
 		if challenge:ShouldCollectReward() then -- if the challenge is ready to loot: show the reward window
-			Event_FireGenericEvent("ChallengeRewardShow", challenge:GetId())
+			Event_FireGenericEvent("ChallengeRewardShow", id)
 		elseif challenge:IsActivated() then -- if the challenge is currently active: abandon the challenge
-			ChallengesLib.AbandonChallenge(challenge:GetId())
+			ChallengesLib.AbandonChallenge(id)
 		else -- or else start the challenge
-			ChallengesLib.ShowHintArrow(challenge:GetId())
-			ChallengesLib.ActivateChallenge(challenge:GetId())
+			self.nSelectedChallengeId = id
+			ChallengesLib.ShowHintArrow(id)
+			ChallengesLib.ActivateChallenge(id)
 		end
 		
 		self:HandleButtonControl(data.index) -- update the buttons
@@ -437,10 +441,14 @@ end
 -- Invoked when a challenge is activated
 -- Hides the Main Window if the user has the hide window on challenge setting activated
 ---------------------------------
-function OrionChallenges:OnChallengeActivate()
+function OrionChallenges:OnChallengeActivate(nChallengeId)
 	if self.tUserSettings.bHideWindowOnChallenge and self.wndMain:IsShown() then
 		self.bHiddenBySetting = true
 		self:OnOrionChallengesToggle()
+	end
+	
+	if self.nSelectedChallengeId ~= nChallengeId and self.tUserSettings.bAutoAbandonChallenges then
+		ChallengesLib.AbandonChallenge(nChallengeId)
 	end
 end
 
@@ -795,7 +803,7 @@ end
 	return ( x1 & mask ) == mask
 ]]--
 function OrionChallenges:HasFilter(nFilter)
-	return bit.bxor(ktFilterTotal, self.tUserSettings.nFilteredChallenges) == nFilter
+	return bit.bxor(knFilterTotal, self.tUserSettings.nFilteredChallenges) == nFilter
 --	return bit.band(self.tUserSettings.nFilteredChallenges, nFilter) == nFilter
 end
 
@@ -880,28 +888,30 @@ end
 -- Updates and sets the settings form elements to its corresponding values
 ---------------------------------
 function OrionChallenges:InitializeSettingControls()
-	local wnd = self.wndSettings
-	local wndMaxItems				= self:GetSettingControl("MaxItems")
-	local wndAutostart				= self:GetSettingControl("Autostart")
-	local wndHideOnChallenge		= self:GetSettingControl("HideWindowOnChallenge")
-	local wndHideUnderground		= self:GetSettingControl("HideUndergroundChallenges")
-	local wndLockPosition			= self:GetSettingControl("LockWindow")
-	local wndAutoloot				= self:GetSettingControl("Autoloot")
-	local wndIgnoredChallenges		= self:GetSettingControl("ShowIgnoredChallenges")
-	local wndShowChallengesOnMap	= self:GetSettingControl("ShowChallengesOnMap")
-	local wndHideCompleted			= self:GetSettingControl("HideCompletedChallenges")
+	local tSettings = {
+		{ wnd = "MaxItems", 					setting = "nMaxItems", type = "text" },
+		{ wnd = "Autostart", 					setting = "bAutostart" },
+		{ wnd = "HideWindowOnChallenge", 		setting = "bHideWindowOnChallenge" },
+		{ wnd = "HideUndergroundChallenges", 	setting = "bHideUnderground" },
+		{ wnd = "LockWindow", 					setting = "bLockWindow" },
+		{ wnd = "Autoloot", 					setting = "bAutoloot" },
+		{ wnd = "ShowIgnoredChallenges", 		setting = "bShowIgnoredChallenges" },
+		{ wnd = "ShowChallengesOnMap",			setting = "bShowChallengesOnMap" },
+		{ wnd = "HideCompletedChallenges", 		setting = "bHideCompletedChallenges" },
+		{ wnd = "AutoAbandonChallenges", 		setting = "bAutoAbandonChallenges" }
+	}
 	
-	self:Debug("Updating settings.")
-	wndMaxItems:SetText(self.tUserSettings.nMaxItems)
-	wndAutostart:SetCheck(self.tUserSettings.bAutostart)
-	wndHideOnChallenge:SetCheck(self.tUserSettings.bHideWindowOnChallenge)
-	wndHideUnderground:SetCheck(self.tUserSettings.bHideUnderground)
-	wndLockPosition:SetCheck(self.tUserSettings.bLockWindow)
-	wndAutoloot:SetCheck(self.tUserSettings.bAutoloot)
-	wndIgnoredChallenges:SetCheck(self.tUserSettings.bShowIgnoredChallenges)
-	wndShowChallengesOnMap:SetCheck(self.tUserSettings.bShowChallengesOnMap)
-	wndHideCompleted:SetCheck(self.tUserSettings.bHideCompletedChallenges)
+	for k, obj in pairs(tSettings) do
+		local wnd = self:GetSettingControl(obj.wnd)
+		local type = obj.type and obj.type or "check" end
+		if type == "text" then
+			wnd:SetText(self.tUserSettings[obj.setting])
+		elseif type == "check" then
+			wnd:SetCheck(self.tUserSettings[obj.setting])
+		end		
+	end	
 	
+	self:Debug("Updating settings.")	
 	self.tFilterControls = { 
 		{ control = self:GetFilterControl("FilterGeneral"),	mask = ktFilters.FILTER_GENERAL }, 
 		{ control = self:GetFilterControl("FilterItem"),	mask = ktFilters.FILTER_ITEM }, 
@@ -910,7 +920,7 @@ function OrionChallenges:InitializeSettingControls()
 	}
 	
 	self:InitializeFilterControls()
-	--self:OnFilterToggle()
+	self:OnFilterToggle()
 	self:LockUnlockWindow()
 end
 
@@ -1007,6 +1017,15 @@ function OrionChallenges:OnHideCompletedChallengesToggle()
 end
 
 ---------------------------------
+-- Invoked when the user toggles the auto abandon challenges setting
+---------------------------------
+function OrionChallenges:OnAutoAbandonChallengesToggle()
+	self:Debug("OnAutoAbandonChallengesToggle")
+	self.tUserSettings.bAutoAbandonChallenges = self:GetSettingControl("AutoAbandonChallenges"):IsChecked()
+	self:OnSettingChanged()
+end
+
+---------------------------------
 -- Returns the filter control with the given name
 -- @param sFilter the filter name
 -- @return the window control for the given name
@@ -1020,7 +1039,7 @@ end
 ---------------------------------
 function OrionChallenges:OnFilterToggle()
 	self:Debug("OnFilterToggle")
-	local nNewMask = ktFilterTotal
+	local nNewMask = knFilterTotal
 	
 	for k, obj in pairs(self.tFilterControls) do
 		if not obj.control:IsChecked() then
