@@ -73,7 +73,7 @@ end
 tDefaultSettings.nFilteredChallenges = ktFilterTotal
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 4, 2
+local nVersion, nMinor, nTick = 1, 4, 3
 local sAuthor = "Troxito@EU-Progenitor"
 
 local nAutostartProximity = 5
