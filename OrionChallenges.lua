@@ -441,14 +441,15 @@ end
 -- Invoked when a challenge is activated
 -- Hides the Main Window if the user has the hide window on challenge setting activated
 ---------------------------------
-function OrionChallenges:OnChallengeActivate(nChallengeId)
+function OrionChallenges:OnChallengeActivate(challenge)
 	if self.tUserSettings.bHideWindowOnChallenge and self.wndMain:IsShown() then
 		self.bHiddenBySetting = true
 		self:OnOrionChallengesToggle()
 	end
 	
-	if self.nSelectedChallengeId ~= nChallengeId and self.tUserSettings.bAutoAbandonChallenges then
-		ChallengesLib.AbandonChallenge(nChallengeId)
+	if self.nSelectedChallengeId ~= challenge:GetId() and self.tUserSettings.bAutoAbandonChallenges then
+		self:Debug(self.nSelectedChallengeId .. "=" .. challenge:GetId())
+		ChallengesLib.AbandonChallenge(challenge:GetId())
 	end
 end
 
@@ -903,12 +904,14 @@ function OrionChallenges:InitializeSettingControls()
 	
 	for k, obj in pairs(tSettings) do
 		local wnd = self:GetSettingControl(obj.wnd)
-		local type = obj.type and obj.type or "check" end
-		if type == "text" then
-			wnd:SetText(self.tUserSettings[obj.setting])
-		elseif type == "check" then
-			wnd:SetCheck(self.tUserSettings[obj.setting])
-		end		
+		if wnd ~= nil then
+			local type = obj.type and obj.type or "check"
+			if type == "text" then
+				wnd:SetText(self.tUserSettings[obj.setting])
+			elseif type == "check" then
+				wnd:SetCheck(self.tUserSettings[obj.setting])
+			end
+		end
 	end	
 	
 	self:Debug("Updating settings.")	
