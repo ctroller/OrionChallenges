@@ -137,7 +137,7 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterSlashCommand("oc", "OnOrionChallengesToggle", self)
 		
 		Apollo.RegisterEventHandler("SubZoneChanged",				"OnSubZoneChanged",					self)
-		Apollo.RegisterEventHandler("ChallengeUnlocked",			"InvalidateCachedChallenges",		self)
+		Apollo.RegisterEventHandler("ChallengeUnlocked",			"OnChallengeUnlocked",				self)
 		Apollo.RegisterEventHandler("InterfaceMenuListHasLoaded",	"OnInterfaceMenuListHasLoaded",		self)
 		Apollo.RegisterEventHandler("OrionChallengesToggle",		"OnOrionChallengesToggle",			self)
 		Apollo.RegisterEventHandler("OrionChallengesOrderChanged",	"OnOrionChallengesOrderChanged",	self)
@@ -220,9 +220,8 @@ function OrionChallenges:OnZoneMapInit()
 				table.insert(zoneMap.arAllowedTypesSuperPanning, self.eObjectTypeChallenge)
 			end
 		end
-			
-		-- and set it visible by default.
-		zoneMap:SetTypeVisibility(self.eObjectTypeChallenge, true)
+		
+		self:DisplayChallengesOnZoneMap(self.tUserSettings.bShowChallengesOnMap)
 		self:AddChallengesToZoneMap()
 	end
 end
@@ -234,40 +233,35 @@ function OrionChallenges:AddChallengesToZoneMap()
 	-- make sure we have a valid zoneMap and are allowed to add them to the map
 	if self.wndZoneMap and self.tUserSettings.bShowChallengesOnMap and self.eObjectTypeChallenge then
 		self:Debug("AddChallengesToZoneMap")
-		
 		-- iterate current challenges
 		for k, challenge in pairs(self.tChallenges) do
 			-- only add if not added yet
-			if self.tZoneMapObjects[challenge:GetId()] == nil then
-				local loc = challenge:GetMapLocation()
-				-- we need a valid location, so underground challenges won't be added
-				if loc ~= nil then
-					-- default settings for the icon. Make the icon slightly faded if the user hasn't completed it yet
-					local tInfo = {
-						strIcon = ksSpriteChallenge,
-						strIconEdge = "",
-						crObject = challenge:GetCompletionCount()>0 and  CColor.new(1, 1, 1, 1) or CColor.new(0.5, 0.5, 0.5, 1),				
-						crEdge = CColor.new(1, 1, 1, 1)
-					}
-					
-					-- finally add the icon to the zone map and store the reference id
-					self.tZoneMapObjects[challenge:GetId()] = self.wndZoneMap:AddObject(self.eObjectTypeChallenge, loc, "Challenge: "..challenge:GetName(), tInfo, {bNeverShowOnEdge = true, bFixedSizeMedium = true})
-				end
-			end		
+			self:AddChallengeToZoneMap(challenge)
 		end
 	end
 end
 
----------------------------------
--- Removes all current Challenges from the Zone Map
----------------------------------
-function OrionChallenges:RemoveChallengesFromZoneMap()
-	if self.tZoneMapObjects and self.wndZoneMap then
-		for k, v in pairs(self.tZoneMapObjects) do
-			self.wndZoneMap:RemoveObject(v)
-			self.tZoneMapObjects[k] = nil
+function OrionChallenges:AddChallengeToZoneMap(challenge)
+	if self.tZoneMapObjects[challenge:GetId()] == nil then
+		local loc = challenge:GetMapLocation()
+		-- we need a valid location, so underground challenges won't be added
+		if loc ~= nil then
+			-- default settings for the icon. Make the icon slightly faded if the user hasn't completed it yet
+			local tInfo = {
+				strIcon = ksSpriteChallenge,
+				strIconEdge = "",
+				crObject = challenge:GetCompletionCount()>0 and  CColor.new(1, 1, 1, 1) or CColor.new(0.5, 0.5, 0.5, 1),				
+				crEdge = CColor.new(1, 1, 1, 1)
+			}
+					
+			-- finally add the icon to the zone map and store the reference id
+			self.tZoneMapObjects[challenge:GetId()] = self.wndZoneMap:AddObject(self.eObjectTypeChallenge, loc, "Challenge: "..challenge:GetName(), tInfo, {bNeverShowOnEdge = true, bFixedSizeMedium = true})
 		end
 	end
+end
+
+function OrionChallenges:DisplayChallengesOnZoneMap(bFlag)
+	zoneMap:SetTypeVisibility(self.eObjectTypeChallenge, bFlag)
 end
 
 ---------------------------------
@@ -527,6 +521,11 @@ function OrionChallenges:InvalidateCachedChallenges()
 	if nZoneId ~= nil and self.tCachedChallenges[nZoneId] ~= nil then
 		self.tCachedChallenges[nZoneId] = nil
 	end
+end
+
+function OrionChallenges:OnChallengeUnlock(nChallengeId)
+	self:InvalidateCachedChallenges()
+	self:AddChallengeToZoneMap(self:GetChallengeById(nChallengeId))
 end
 
 ---------------------------------
@@ -1002,11 +1001,7 @@ end
 function OrionChallenges:OnShowChallengesOnMapToggle()
 	self:Debug("OnShowChallengesOnMapToggle")
 	self.tUserSettings.bShowChallengesOnMap = self:GetSettingControl("ShowChallengesOnMap"):IsChecked()
-	if not self.tUserSettings.bShowChallengesOnMap then
-		self:RemoveChallengesFromZoneMap()
-	else
-		self:AddChallengesToZoneMap()
-	end
+	self:DisplayChallengesOnZoneMap(self.tUserSettings.bShowChallengesOnMap)
 	self:OnSettingChanged()
 end
 
