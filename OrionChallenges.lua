@@ -74,7 +74,7 @@ end
 tDefaultSettings.nFilteredChallenges = knFilterTotal
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 5, 0
+local nVersion, nMinor, nTick = 1, 5, 1
 local sAuthor = "Troxito@EU-Progenitor"
 
 local nAutostartProximity = 5
@@ -221,8 +221,8 @@ function OrionChallenges:OnZoneMapInit()
 			end
 		end
 		
-		self:DisplayChallengesOnZoneMap(self.tUserSettings.bShowChallengesOnMap)
 		self:AddChallengesToZoneMap()
+		self:DisplayChallengesOnZoneMap(self.tUserSettings.bShowChallengesOnMap)
 	end
 end
 
@@ -261,7 +261,8 @@ function OrionChallenges:AddChallengeToZoneMap(challenge)
 end
 
 function OrionChallenges:DisplayChallengesOnZoneMap(bFlag)
-	zoneMap:SetTypeVisibility(self.eObjectTypeChallenge, bFlag)
+	local zoneMap = self:GetZoneMap()
+	if zoneMap ~= nil then zoneMap:SetTypeVisibility(self.eObjectTypeChallenge, bFlag) end
 end
 
 ---------------------------------
@@ -817,13 +818,22 @@ end
 function OrionChallenges:RepositionSettingsFrame()
 	local nWidth, nHeight = self.wndSettings:GetWidth(), self.wndSettings:GetHeight()
 	local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
-	local nsWidth, _ = Apollo.GetScreenSize()
-	self:Debug(nLeft ..";" .. nWidth .. ";" .. nsWidth)
-	if nLeft + nWidth > nsWidth - nWidth then
-		self.wndSettings:SetAnchorOffsets(nLeft - nWidth, nTop + 10, nLeft, nTop + 10 + nHeight)
-	else
-		self.wndSettings:SetAnchorOffsets(nRight, nTop + 10, nRight + nWidth, nTop + 10 + nHeight)
+	local nsWidth, nsHeight = Apollo.GetScreenSize()	
+	local newLeft, newTop, newRight, newBottom = nRight, nTop, nRight + nWidth, nTop + nHeight	
+	
+	self:Debug("["..nLeft..","..nTop..","..nRight..","..nBottom.."] ["..nWidth..","..nHeight.."] ["..nsWidth..","..nsHeight.."]")
+	
+	if nRight + nWidth  > nsWidth then
+		newLeft = nLeft - nWidth
+		newRight = nLeft
 	end
+	
+	if nTop + nHeight > nsHeight then
+		newTop = nBottom - nHeight
+		newBottom = nBottom
+	end
+	
+	self.wndSettings:SetAnchorOffsets(newLeft, newTop, newRight, newBottom)
 end
 
 function OrionChallenges:OnSettingsToggle()
