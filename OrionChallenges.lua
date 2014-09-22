@@ -74,7 +74,7 @@ end
 tDefaultSettings.nFilteredChallenges = knFilterTotal
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 5, 1
+local nVersion, nMinor, nTick = 1, 6, 0
 local sAuthor = "Troxito@EU-Progenitor"
 
 local nAutostartProximity = 5
@@ -145,7 +145,7 @@ function OrionChallenges:OnDocLoaded()
         
 		Apollo.RegisterEventHandler("ChallengeActivate",			"OnChallengeActivate",				self)
 		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeFinished",				self)
-		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeFinished",				self)
+		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeCompleted",				self)
 		
 		Apollo.RegisterEventHandler("ToggleZoneMap", 				"OnToggleZoneMap", 					self)
 		Apollo.RegisterEventHandler("GenericEvent_ZoneMap_ZoneChanged", "OnZoneMapInit", self)
@@ -243,7 +243,7 @@ end
 
 function OrionChallenges:AddChallengeToZoneMap(challenge)
 	if self.tZoneMapObjects[challenge:GetId()] == nil then
-		local loc = challenge:GetMapLocation()
+		local loc = challenge:GetMapStartLocation() or challenge:GetMapLocation()
 		-- we need a valid location, so underground challenges won't be added
 		if loc ~= nil then
 			-- default settings for the icon. Make the icon slightly faded if the user hasn't completed it yet
@@ -489,6 +489,16 @@ function OrionChallenges:OnChallengeFinished(nChallengeId)
 	end
 end
 
+function OrionChallenges:OnChallengeCompleted(nChallengeId)
+	local challenge = self:GetChallengeById(nChallengeId)
+	if self.tZoneMapObjects[nChallengeId] ~= nil and challenge:GetCompletionCount() == 1 then
+		self.wndZoneMap:RemoveObject(nChallengeId)
+		self.tZoneMapObjects[nChallengeId] = nil
+		self:AddChallengeToZoneMap(challenge)
+	end
+	self:OnChallengeFinished(nChallengeId)
+end
+
 -----------------------------------------------------------------------------------------------
 -- General Functions
 -----------------------------------------------------------------------------------------------
@@ -524,9 +534,9 @@ function OrionChallenges:InvalidateCachedChallenges()
 	end
 end
 
-function OrionChallenges:OnChallengeUnlock(nChallengeId)
+function OrionChallenges:OnChallengeUnlocked(challenge)
 	self:InvalidateCachedChallenges()
-	self:AddChallengeToZoneMap(self:GetChallengeById(nChallengeId))
+	self:AddChallengeToZoneMap(challenge)
 end
 
 ---------------------------------
@@ -621,8 +631,8 @@ end
 -- @return Float representation of the distance in meters
 ---------------------------------
 function OrionChallenges:GetChallengeDistance(challenge)
-	if challenge ~= nil and challenge:GetMapLocation() ~= nil then -- we need a valid challenge and map location
-		local target = challenge:GetMapLocation()
+	if challenge ~= nil and (challenge:GetMapStartLocation() or challenge:GetMapLocation()) ~= nil then -- we need a valid challenge and map location
+		local target = challenge:GetMapStartLocation() or challenge:GetMapLocation()
 		if GameLib.GetPlayerUnit() then
 			local player = GameLib.GetPlayerUnit():GetPosition()
 			return Vector3.New(target.x - player.x, target.y - player.y, target.z - player.z):Length()
@@ -777,7 +787,7 @@ function OrionChallenges:UpdateDistance(index, challenge)
 	local wnd = self.tItems[index]
 	if wnd then
 		local wndDistance = wnd:FindChild("Distance")
-		if challenge and challenge:GetMapLocation() ~= nil then -- we need a valid location
+		if challenge and (challenge:GetMapStartLocation() or challenge:GetMapLocation()) ~= nil then -- we need a valid location
 			local distance = self:GetChallengeDistance(challenge)
 			wndDistance:SetText(math.floor(distance).."m")
 			if self.tUserSettings.bAutostart and math.floor(distance) <= nAutostartProximity and not challenge:IsActivated() then
@@ -1143,4 +1153,3 @@ end
 -----------------------------------------------------------------------------------------------
 local OrionChallengesInst = OrionChallenges:new()
 OrionChallengesInst:Init()
-
