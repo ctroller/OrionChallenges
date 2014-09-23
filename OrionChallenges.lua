@@ -74,10 +74,10 @@ end
 tDefaultSettings.nFilteredChallenges = knFilterTotal
 
 -- Addon Version
-local nVersion, nMinor, nTick = 1, 6, 0
+local nVersion, nMinor, nTick = 1, 6, 1
 local sAuthor = "Troxito@EU-Progenitor"
 
-local nAutostartProximity = 5
+local nAutostartProximity = 50
  
 -----------------------------------------------------------------------------------------------
 -- Initialization
@@ -144,7 +144,7 @@ function OrionChallenges:OnDocLoaded()
 		Apollo.RegisterEventHandler("WindowManagementReady",		"OnWindowManagementReady",			self)
         
 		Apollo.RegisterEventHandler("ChallengeActivate",			"OnChallengeActivate",				self)
-		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeFinished",				self)
+		Apollo.RegisterEventHandler("ChallengeAbandon",				"OnChallengeAbandoned",				self)
 		Apollo.RegisterEventHandler("ChallengeCompleted",			"OnChallengeCompleted",				self)
 		
 		Apollo.RegisterEventHandler("ToggleZoneMap", 				"OnToggleZoneMap", 					self)
@@ -159,6 +159,7 @@ function OrionChallenges:OnDocLoaded()
 		self.bHiddenBySetting = false
 		self.tChallengesById = {}
 		self.nSelectedChallengeId = -1
+		self.nActiveChallenge = -1
 		
 		self.tZoneMapObjects = {}
 		
@@ -255,7 +256,7 @@ function OrionChallenges:AddChallengeToZoneMap(challenge)
 			}
 					
 			-- finally add the icon to the zone map and store the reference id
-			self.tZoneMapObjects[challenge:GetId()] = self.wndZoneMap:AddObject(self.eObjectTypeChallenge, loc, "Challenge: "..challenge:GetName(), tInfo, {bNeverShowOnEdge = true, bFixedSizeMedium = true})
+			self.tZoneMapObjects[challenge:GetId()] = self.wndZoneMap:AddObject(self.eObjectTypeChallenge, loc, "Challenge: "..challenge:GetName(), tInfo, {bNeverShowOnEdge = true, bFixedSizeMedium = true}, nil, "c"..challenge:GetId())
 		end
 	end
 end
@@ -442,6 +443,8 @@ function OrionChallenges:OnChallengeActivate(challenge)
 		self:OnOrionChallengesToggle()
 	end
 	
+	self.nActiveChallenge = challenge:GetId()
+	
 	if self.nSelectedChallengeId ~= challenge:GetId() and self.tUserSettings.bAutoAbandonChallenges then
 		self:Debug(self.nSelectedChallengeId .. "=" .. challenge:GetId())
 		ChallengesLib.AbandonChallenge(challenge:GetId())
@@ -481,22 +484,28 @@ end
 -- Shows the reward window if the user has at least achieved a bronze reward and has the corresponding setting activated
 -- @param nChallengeId The abandoned challenge id
 ---------------------------------
-function OrionChallenges:OnChallengeFinished(nChallengeId)
-	self:ShowWindowAfterChallenge()
-	local challenge = self:GetChallengeById(nChallengeId)
-	if self.tUserSettings.bAutoloot and challenge:ShouldCollectReward() then -- only show if we can collect a reward
-		Event_FireGenericEvent("ChallengeRewardShow", nChallengeId)
-	end
+function OrionChallenges:OnChallengeAbandoned(nChallengeId)
+	self:HandleChallengeFinished(nChallengeId)
 end
 
 function OrionChallenges:OnChallengeCompleted(nChallengeId)
 	local challenge = self:GetChallengeById(nChallengeId)
 	if self.tZoneMapObjects[nChallengeId] ~= nil and challenge:GetCompletionCount() == 1 then
-		self.wndZoneMap:RemoveObject(nChallengeId)
+		self.wndZoneMap:RemoveObject("c"..nChallengeId)
 		self.tZoneMapObjects[nChallengeId] = nil
 		self:AddChallengeToZoneMap(challenge)
 	end
-	self:OnChallengeFinished(nChallengeId)
+	
+	self:HandleChallengeFinished(nChallengeId)
+end
+
+function OrionChallenges:HandleChallengeFinished(nChallengeId)
+	self:ShowWindowAfterChallenge()
+	self.nActiveChallenge = -1
+	local challenge = self:GetChallengeById(nChallengeId)
+	if self.tUserSettings.bAutoloot and challenge:ShouldCollectReward() then -- only show if we can collect a reward
+		Event_FireGenericEvent("ChallengeRewardShow", nChallengeId)
+	end
 end
 
 -----------------------------------------------------------------------------------------------
@@ -537,6 +546,7 @@ end
 function OrionChallenges:OnChallengeUnlocked(challenge)
 	self:InvalidateCachedChallenges()
 	self:AddChallengeToZoneMap(challenge)
+	self:PopulateItemList()
 end
 
 ---------------------------------
@@ -632,14 +642,25 @@ end
 ---------------------------------
 function OrionChallenges:GetChallengeDistance(challenge)
 	if challenge ~= nil and (challenge:GetMapStartLocation() or challenge:GetMapLocation()) ~= nil then -- we need a valid challenge and map location
-		local target = challenge:GetMapStartLocation() or challenge:GetMapLocation()
+		local targetLoc, targetStart = challenge:GetMapLocation(), challenge:GetMapStartLocation()
 		if GameLib.GetPlayerUnit() then
 			local player = GameLib.GetPlayerUnit():GetPosition()
-			return Vector3.New(target.x - player.x, target.y - player.y, target.z - player.z):Length()
+			local tV = Vector3.New(targetLoc.x - player.x, targetLoc.y - player.y, targetLoc.z - player.z):Length()
+			local tS = nil
+			if targetStart ~= nil then
+				tS = Vector3.New(targetStart.x - player.x, targetStart.y - player.y, targetStart.z - player.z):Length()
+			end
+			return tV, tS
 		end
 	end
 	
 	return nil
+end
+
+function OrionChallenges:IsChallengeStartable(challenge)
+	return not challenge:IsInCooldown() and self:IsStartable(challenge)
+		and not challenge:IsActivated() and not challenge:ShouldCollectReward() 
+		and self:HelperIsInZone(challenge:GetZoneRestrictionInfo())
 end
 
 ---------------------------------
@@ -656,9 +677,7 @@ function OrionChallenges:HandleButtonControl(index)
 		local wndTimer = wnd:FindChild("Timer")
 		local wndIgnore = wnd:FindChild("Ignore")
 	
-		local startable = not challenge:IsInCooldown() and self:IsStartable(challenge)
-				and not challenge:IsActivated() and not challenge:ShouldCollectReward() 
-				and self:HelperIsInZone(challenge:GetZoneRestrictionInfo())
+		local startable = self:IsChallengeStartable(challenge)
 		local sText, sBGColor, bEnableCtrl = "", "ff000000", true
 		
 		wndTimer:Show(false)
@@ -788,9 +807,12 @@ function OrionChallenges:UpdateDistance(index, challenge)
 	if wnd then
 		local wndDistance = wnd:FindChild("Distance")
 		if challenge and (challenge:GetMapStartLocation() or challenge:GetMapLocation()) ~= nil then -- we need a valid location
-			local distance = self:GetChallengeDistance(challenge)
-			wndDistance:SetText(math.floor(distance).."m")
-			if self.tUserSettings.bAutostart and math.floor(distance) <= nAutostartProximity and not challenge:IsActivated() then
+			local distanceLoc, distanceStart = self:GetChallengeDistance(challenge)
+			wndDistance:SetText(math.floor(distanceStart or distanceLoc).."m")
+			if self.nActiveChallenge == -1 and self.tUserSettings.bAutostart 
+				and (math.floor(distanceLoc) <= nAutostartProximity 
+					or (distanceStart ~= nil and math.floor(distanceStart) <= nAutostartProximity)) 
+				and self:IsChallengeStartable(challenge) and not challenge:IsActivated() then
 				ChallengesLib.ActivateChallenge(challenge:GetId())
 			end
 		else
