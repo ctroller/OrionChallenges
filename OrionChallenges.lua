@@ -77,7 +77,7 @@ tDefaultSettings.nFilteredChallenges = knFilterTotal
 local nVersion, nMinor, nTick = 1, 6, 1
 local sAuthor = "Troxito@EU-Progenitor"
 
-local nAutostartProximity = 50
+local nAutostartProximity = 150
  
 -----------------------------------------------------------------------------------------------
 -- Initialization
@@ -604,12 +604,12 @@ function OrionChallenges:GetChallengesByZoneSorted(nZoneId)
 	-- sort our challenges
 	-- first by distance, second by name
 	table.sort(filteredChallenges, function(challenge1, challenge2) 
-		local dist1 = self:GetChallengeDistance(challenge1)
-		local dist2 = self:GetChallengeDistance(challenge2)
+		local dist1, start1 = self:GetChallengeDistance(challenge1)
+		local dist2, start2 = self:GetChallengeDistance(challenge2)
 		if dist1 == nil and not self.tUserSettings.bHideUnderground then dist1 = -1 end
 		if dist2 == nil and not self.tUserSettings.bHideUnderground then dist2 = -1 end
-		local sameDist = dist1 == dist2
-		return sameDist and challenge1:GetName() > challenge2:GetName() or dist1 < dist2
+		local sameDist = (start1 or dist1) == (start2 or dist2)
+		return sameDist and challenge1:GetName() > challenge2:GetName() or (start1 or dist1) < (start2 or dist2)
 	end)
 	
 	return filteredChallenges
@@ -635,6 +635,10 @@ function OrionChallenges:IsIgnored(challenge)
 	return self.tUserSettings.tIgnoredChallenges[challenge:GetId()] == true
 end
 
+function OrionChallenges:GetLocationDistanceVector(loc1, loc2)
+	return Vector3.New(loc1.x - loc2.x, loc1.y - loc2.y, loc1.z - loc2.z)
+end
+
 ---------------------------------
 -- Returns the distance in meters from the player to a challenge 
 -- @param challenge The challenge object to check agains
@@ -644,11 +648,11 @@ function OrionChallenges:GetChallengeDistance(challenge)
 	if challenge ~= nil and (challenge:GetMapStartLocation() or challenge:GetMapLocation()) ~= nil then -- we need a valid challenge and map location
 		local targetLoc, targetStart = challenge:GetMapLocation(), challenge:GetMapStartLocation()
 		if GameLib.GetPlayerUnit() then
-			local player = GameLib.GetPlayerUnit():GetPosition()
-			local tV = Vector3.New(targetLoc.x - player.x, targetLoc.y - player.y, targetLoc.z - player.z):Length()
+			local playerPos = GameLib.GetPlayerUnit():GetPosition()
+			local tV = self:GetLocationDistanceVector(targetLoc, playerPos):Length()
 			local tS = nil
 			if targetStart ~= nil then
-				tS = Vector3.New(targetStart.x - player.x, targetStart.y - player.y, targetStart.z - player.z):Length()
+				tS = self:GetLocationDistanceVector(targetStart, playerPos):Length()
 			end
 			return tV, tS
 		end
@@ -741,6 +745,8 @@ function OrionChallenges:GetZoneMap()
 			return zoneMap
 		end
 	end
+	
+	return nil
 end
 
 -----------------------------------------------------------------------------------------------
@@ -810,8 +816,8 @@ function OrionChallenges:UpdateDistance(index, challenge)
 			local distanceLoc, distanceStart = self:GetChallengeDistance(challenge)
 			wndDistance:SetText(math.floor(distanceStart or distanceLoc).."m")
 			if self.nActiveChallenge == -1 and self.tUserSettings.bAutostart 
-				and (math.floor(distanceLoc) <= nAutostartProximity 
-					or (distanceStart ~= nil and math.floor(distanceStart) <= nAutostartProximity)) 
+				and not (math.floor(distanceLoc) >= nAutostartProximity 
+					or (distanceStart ~= nil and math.floor(distanceStart) >= nAutostartProximity))
 				and self:IsChallengeStartable(challenge) and not challenge:IsActivated() then
 				ChallengesLib.ActivateChallenge(challenge:GetId())
 			end
